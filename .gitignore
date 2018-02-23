@@ -1,1 +1,3 @@
 test.py
+VAE/MNIST_data/*
+!VAE/MNIST_data/.gitkeep

@@ -8,10 +8,6 @@ Written by Arash Tehrani
 """
 #   ---------------------------------------------------
 
-
-from abc import ABCMeta
-from abc import abstractmethod
-
 import matplotlib.pyplot as plt
 import os
 import tensorflow as tf
@@ -20,7 +16,8 @@ import tensorflow as tf
 
 class tfRecordBuilder(object):
 
-    def __init__(self, dataset_path, annotation_path,
+    def __init__(self,
+                 dataset_path, annotation_path,
                  tfRecord_path, file_format='jpg'):
 
         self.dataset_path = dataset_path
@@ -44,7 +41,7 @@ class tfRecordBuilder(object):
         thermal_image_data = tf.gfile.FastGFile(thermal_image_path, 'r').read() #maybe 'rb'
         rgb_image_data = tf.gfile.FastGFile(rgb_image_path, 'r').read()
 
-        image = self._coder.decode_jpeg(rgb_image_data)
+        image = self._coder.decode_jpeg(rgb_image_data) # should we use tf.get_shape()
 
         # Read and parse the label
         labels = []

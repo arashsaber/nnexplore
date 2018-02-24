@@ -13,9 +13,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tflearn
 
-
-from tensorflow.examples.tutorials.mnist import input_data
-
 #   ----------------------------------------------
 class VAE(object):
 

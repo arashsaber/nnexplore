@@ -1,4 +1,12 @@
+#!/usr/bin/python3
+"""
+The file contains a Variational Autoencoder in tensorflow.
 
+Copyright (c) 2017
+Licensed under the MIT License (see LICENSE for details)
+Written by Arash Tehrani
+"""
+#   ---------------------------------------------------
 
 import tensorflow as tf
 import numpy as np
@@ -11,20 +19,21 @@ from tensorflow.examples.tutorials.mnist import input_data
 #   ----------------------------------------------
 class VAE(object):
 
-    def __init__(self, session, reduced_dim=10, keepprob=0.8, dec_in_channels=1,
-                 LR=1e-3, optimizer='adam', tb_verbose=3):
+    def __init__(self, #session, 
+        reduced_dim=10, keepprob=0.8, dec_in_channels=1,
+        LR=1e-3, optimizer='adam', tb_verbose=3):
         tf.reset_default_graph()
-        self.sess = session
+        #self.sess = session
         self.reduced_dim = reduced_dim
         self.keepprob= keepprob
         self.dec_in_channels = dec_in_channels
         self.LR = LR
         self.optimizer = optimizer
         self.tb_verbose = tb_verbose
-        self.setup()
+        self._setup()
         self._build_model()
 
-    def setup(self):
+    def _setup(self):
         self.X_in = tf.placeholder(dtype=tf.float32, shape=[None, 28, 28], name='X')
         self.Y = tf.placeholder(dtype=tf.float32, shape=[None, 28, 28], name='Y')
         self.Y_flat = tf.reshape(self.Y, shape=[-1, 28 * 28])
@@ -35,9 +44,9 @@ class VAE(object):
     def encoder(self):
         activation = self.lrelu
         with tf.variable_scope("encoder", reuse=None):
-            input_shape = [None, 28, 28, 1]
-            X = tflearn.layers.core.input_data(shape=input_shape, name='input')
-            #X = tf.reshape(self.X_in, shape=[-1, 28, 28, 1])
+            #input_shape = [None, 28, 28, 1]
+            #X = tflearn.layers.core.input_data(shape=input_shape, name='input')
+            X = tf.reshape(self.X_in, shape=[-1, 28, 28, 1])
             x = tf.layers.conv2d(X, filters=64, kernel_size=4, strides=2, padding='same', activation=activation)
             x = tf.nn.dropout(x, self.keep_prob)
             x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, padding='same', activation=activation)
@@ -78,58 +87,26 @@ class VAE(object):
         unreshaped = tf.reshape(dec, [-1, 28 * 28])
         self.img_loss = tf.reduce_sum(tf.squared_difference(unreshaped, self.Y_flat), 1)
         self.latent_loss = -0.5 * tf.reduce_sum(1.0 + 2.0 * sd - tf.square(mn) - tf.exp(2.0 * sd), 1)
-        loss = tf.reduce_mean(self.img_loss + self.latent_loss)
-        net = tflearn.layers.estimator.regression(unreshaped,
-                                                  optimizer=self.optimizer,
-                                                  learning_rate=self.LR,
-                                                  loss=loss,
-                                                  name='targets')
+        self.loss = tf.reduce_mean(self.img_loss + self.latent_loss)
+        self.acc = tf.reduce_mean(self.loss)
 
-        self.model = tflearn.DNN(net, tensorboard_dir='logs', tensorboard_verbose=self.tb_verbose, session=self.sess)
+    def train(self, trainX, testX, batch_size=128):   
+        optimizer = tflearn.optimizers.Adam(learning_rate=self.LR, name='Adam')
+        step = tflearn.variable("step", initializer='zeros', shape=[])
+        optimizer.build(step_tensor=step)
+        optim_tensor = optimizer.get_tensor()
 
-    def train(self, x, val_x, n_epochs=410,
-              batch_size=128, snapshot_step=200, show_metric=True):
+        trainop = tflearn.TrainOp(loss=self.loss, optimizer=optim_tensor,
+                                metric=self.acc, batch_size=128,
+                                step_tensor=step)
+        trainer = tflearn.Trainer(train_ops=trainop, tensorboard_verbose=self.tb_verbose)
+        trainer.fit({self.X_in: trainX, self.Y: trainX}, val_feed_dicts={self.X_in: testX, self.Y: testY},
+                    n_epoch=50, show_metric=True)
 
-        """
-        Train the sparseAE
-        :param x: input data to feed the network
-        :param val_x: validation data
-        :param n_epochs: int, number of epochs
-        :param batch_size: int
-        :param snapshot_step: int
-        :param show_metric: boolean
-        """
-        self.sess.run(tf.global_variables_initializer())
-        self.model.fit({'input': x}, {'targets': x}, n_epoch=n_epochs,
-                       batch_size=batch_size,
-                       validation_set=({'input': val_x}, {'targets': val_x}),
-                       snapshot_step=snapshot_step,
-                       show_metric=show_metric,
-                       run_id='VAE')
-        '''
-        sess.run(tf.global_variables_initializer())
-
-        for i in range(num_epochs):
-            print(i)
-            batch = [np.reshape(b, [28, 28]) for b in data.train.next_batch(batch_size=self.batch_size)[0]]
-            sess.run(optimizer, feed_dict={self.X_in: batch, self.Y: batch, self.keep_prob: self.keepprob})
-
-            if not i % 200:
-                ls, d, i_ls, d_ls, mu, sigm = sess.run([loss, dec, img_loss, latent_loss, mn, sd],
-                                                       feed_dict={self.X_in: batch, self.Y: batch, self.keep_prob: 1.0})
-                plt.imshow(np.reshape(batch[0], [28, 28]), cmap='gray')
-                plt.show()
-                plt.imshow(d[0], cmap='gray')
-                plt.show()
-                print(i, ls, np.mean(i_ls), np.mean(d_ls))
-        '''
+            
     @staticmethod
     def lrelu(x, alpha=0.3):
         return tf.maximum(x, tf.multiply(x, alpha))
-
-
-
-
 
 #   ----------------------------------------------
 if __name__ == '__main__':
@@ -138,10 +115,10 @@ if __name__ == '__main__':
 
     trainX, trainY, testX, testY = mnist.load_data(one_hot=True)
 
-    sess = tf.Session()
-    vae = VAE(sess)
+    #sess = tf.Session()
+    vae = VAE()
     vae.train(trainX, testX)
-    sess.close()
+    #sess.close()
 
 
 

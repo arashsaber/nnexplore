@@ -23,13 +23,12 @@ import tflearn.datasets.mnist as mnist
 class VAE(object):
     def __init__(self, input_shape):
 
-
     def encoder(self):
         x = tflearn.layers.core.input_data(shape=input_shape, name='input')
         
 
     def decoder(self):
-        
+
 
     # Define VAE Loss
     def _vae_loss(x_reconstructed, x_true):

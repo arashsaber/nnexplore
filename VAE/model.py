@@ -42,37 +42,39 @@ class VAE(object):
         activation = self.lrelu
         with tf.variable_scope("encoder", reuse=None):
             x = tf.reshape(self.X, shape=[-1, 28, 28, 1])
-            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, padding='same', activation=activation)
+            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, padding='same', 
+            activation=activation, name ='dense1')
             x = tf.nn.dropout(x, self.keep_prob)
-            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, padding='same', activation=activation)
+            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, padding='same', 
+            activation=activation, name ='conv1')
             x = tf.nn.dropout(x, self.keep_prob)
-            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=1, padding='same', activation=activation)
+            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=1, padding='same', 
+            activation=activation, name ='conv2')
             x = tf.nn.dropout(x, self.keep_prob)
             x = tf.contrib.layers.flatten(x)
-            z_mean = tf.layers.dense(x, units=self.reduced_dim)
-            z_std = tf.layers.dense(x, units=self.reduced_dim)
+            z_mean = tf.layers.dense(x, units=self.reduced_dim, name ='dense21')
+            z_std = tf.layers.dense(x, units=self.reduced_dim, name ='dense22')
             eps = tf.random_normal(tf.shape(z_std), dtype=tf.float32, mean=0., stddev=1.0,
                        name='epsilon')
-            z = z_mean + tf.exp(z_std / 2) * eps
-            
+            z = z_mean + tf.exp(z_std / 2) * eps            
             return z, z_mean, z_std
 
     def decoder(self, sampled_z):
         with tf.variable_scope("decoder", reuse=None):
-            x = tf.layers.dense(sampled_z, units=self.inputs_decoder, activation=self.lrelu)
+            x = tf.layers.dense(sampled_z, units=self.inputs_decoder, activation=self.lrelu, name ='dense3')
             #x = tf.layers.dense(x, units=self.inputs_decoder * 2 + 1, activation=self.lrelu)
             x = tf.reshape(x, self.reshaped_dim)
             x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=2, padding='same',
-                                           activation=tf.nn.relu)
+                                           activation=tf.nn.relu, name ='conv3')
             x = tf.nn.dropout(x, self.keep_prob)
             x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=1, padding='same',
-                                           activation=tf.nn.relu)
+                                           activation=tf.nn.relu, name ='conv4')
             x = tf.nn.dropout(x, self.keep_prob)
             x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=1, padding='same',
-                                           activation=tf.nn.relu)
+                                           activation=tf.nn.relu, name ='conv5')
 
             x = tf.contrib.layers.flatten(x)
-            x = tf.layers.dense(x, units=28 * 28, activation=tf.nn.sigmoid)
+            x = tf.layers.dense(x, units=28 * 28, activation=tf.nn.sigmoid, name ='dense4')
             img = tf.reshape(x, shape=[-1, 28, 28])
 
             return img
@@ -91,7 +93,7 @@ class VAE(object):
         self.kl_div_loss = -0.5 * tf.reduce_sum(self.kl_div_loss, 1)
         self.loss = tf.reduce_mean(self.encode_decode_loss + self.kl_div_loss)
 
-    def train(self, trainX, testX, batch_size=128, n_epoch=50):   
+    def train(self, trainX, testX, batch_size=128, n_epoch=50, tensorboar_dir='.VAE/tflearn_logs/'):   
         optimizer = tflearn.optimizers.Adam(learning_rate=self.LR, name='Adam')
         step = tflearn.variable("step", initializer='zeros', shape=[])
         optimizer.build(step_tensor=step)
@@ -100,7 +102,7 @@ class VAE(object):
         trainop = tflearn.TrainOp(loss=self.loss, optimizer=optim_tensor,
                                 metric=None, batch_size=128,
                                 step_tensor=step)
-        trainer = tflearn.Trainer(train_ops=trainop, tensorboard_verbose=self.tb_verbose)
+        trainer = tflearn.Trainer(train_ops=trainop, tensorboard_dir=tensorboar_dir, tensorboard_verbose=self.tb_verbose)
         trainer.fit({self.X: trainX, self.Y: trainX}, val_feed_dicts={self.X: testX, self.Y: testX},
                     n_epoch=n_epoch, show_metric=True)
           
@@ -110,7 +112,8 @@ class VAE(object):
 
 #   ----------------------------------------------
 if __name__ == '__main__':
-
+    import os
+    os.chdir('/home/arash/Desktop/python/nnexplore/VAE')
     import tflearn.datasets.mnist as mnist
 
     trainX, trainY, testX, testY = mnist.load_data(one_hot=True)
@@ -118,7 +121,7 @@ if __name__ == '__main__':
     testX = testX.reshape([-1, 28, 28])
     #sess = tf.Session()
     vae = VAE()
-    vae.train(trainX, testX)
+    vae.train(trainX, testX, n_epoch=10)
     #sess.close()
 
 

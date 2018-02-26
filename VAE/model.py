@@ -39,7 +39,7 @@ class VAE(object):
         self.inputs_decoder = 49 * self.dec_in_channels
 
     def encoder(self):
-        activation = self.lrelu
+        activation = tf.nn.relu #self.lrelu
         with tf.variable_scope("encoder", reuse=None):
             x = tf.reshape(self.X, shape=[-1, 28, 28, 1])
             x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, padding='same', 
@@ -60,8 +60,10 @@ class VAE(object):
             return z, z_mean, z_std
 
     def decoder(self, sampled_z):
+        activation = tf.nn.relu #self.lrelu
+        
         with tf.variable_scope("decoder", reuse=None):
-            x = tf.layers.dense(sampled_z, units=self.inputs_decoder, activation=self.lrelu, name ='dense3')
+            x = tf.layers.dense(sampled_z, units=self.inputs_decoder, activation=activation, name ='dense3')
             #x = tf.layers.dense(x, units=self.inputs_decoder * 2 + 1, activation=self.lrelu)
             x = tf.reshape(x, self.reshaped_dim)
             x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=2, padding='same',
@@ -93,7 +95,7 @@ class VAE(object):
         self.kl_div_loss = -0.5 * tf.reduce_sum(self.kl_div_loss, 1)
         self.loss = tf.reduce_mean(self.encode_decode_loss + self.kl_div_loss)
 
-    def train(self, trainX, testX, batch_size=128, n_epoch=50, tensorboar_dir='.VAE/tflearn_logs/'):   
+    def train(self, trainX, testX, batch_size=128, n_epoch=50, tensorboar_dir='./tflearn_logs/'):   
         optimizer = tflearn.optimizers.Adam(learning_rate=self.LR, name='Adam')
         step = tflearn.variable("step", initializer='zeros', shape=[])
         optimizer.build(step_tensor=step)

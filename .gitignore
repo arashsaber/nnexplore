@@ -1,3 +1,5 @@
 test.py
 VAE/mnist/*
 !VAE/mnist/.gitkeep
+VAE/tflearn_logs/*
+!VAE/tflearn_logs/.gitkeep

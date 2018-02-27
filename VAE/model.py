@@ -12,7 +12,7 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 import tflearn
-
+from tflearn.helpers.evaluator import Evaluator
 #   ----------------------------------------------
 class VAE(object):
 
@@ -104,10 +104,41 @@ class VAE(object):
         trainop = tflearn.TrainOp(loss=self.loss, optimizer=optim_tensor,
                                 metric=None, batch_size=128,
                                 step_tensor=step)
-        trainer = tflearn.Trainer(train_ops=trainop, tensorboard_dir=tensorboar_dir, tensorboard_verbose=self.tb_verbose)
-        trainer.fit({self.X: trainX, self.Y: trainX}, val_feed_dicts={self.X: testX, self.Y: testX},
+        self.trainer = tflearn.Trainer(train_ops=trainop, tensorboard_dir=tensorboar_dir, tensorboard_verbose=self.tb_verbose)
+        self.trainer.fit({self.X: trainX, self.Y: trainX}, val_feed_dicts={self.X: testX, self.Y: testX},
                     n_epoch=n_epoch, show_metric=True)
-          
+    
+    # save and load are copied directly from tflearn source code
+    def save(self, model_file):
+        """
+        save model weights
+        Arguments:
+            model_file: string, address of the saved file
+        """
+        self.trainer.save(model_file)
+
+    def load(self, model_file, weights_only=False, **optargs):
+        """ Load.
+        Restore model weights.
+        Arguments:
+            model_file: `str`. Model path.
+            weights_only: `bool`. If True, only weights will be restored (
+                and not intermediate variable, such as step counter, moving
+                averages...). Note that if you are using batch normalization,
+                averages will not be restored as well.
+            optargs: optional extra arguments for trainer.restore (see helpers/trainer.py)
+                     These optional arguments may be used to limit the scope of
+                     variables restored, and to control whether a new session is 
+                     created for the restored variables.
+        """
+        self.trainer.restore(model_file, weights_only, **optargs)
+        self.session = self.trainer.session
+        self.predictor = Evaluator([self.net],
+                                   session=self.session,
+                                   model=None)
+        for d in tf.get_collection(tf.GraphKeys.DATA_PREP):
+            if d: d.restore_params(self.session)
+
     @staticmethod
     def lrelu(x, alpha=0.3):
         return tf.maximum(x, tf.multiply(x, alpha))

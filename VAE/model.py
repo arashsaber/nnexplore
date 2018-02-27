@@ -18,15 +18,18 @@ class VAE(object):
 
     def __init__(self, #session, 
         reduced_dim=10, keep_prob=0.8, dec_in_channels=1,
-        LR=1e-3, optimizer='adam', tb_verbose=3):
+        LR=1e-3, optimizer='adam', tb_verbose=3,
+        batch_size=128, tensorboar_dir='./tflearn_logs/'):
         tf.reset_default_graph()
         #self.sess = session
         self.reduced_dim = reduced_dim
         self.keep_prob= keep_prob
-        self.dec_in_channels = dec_in_channels
+        self.dec_in_channels = dec_in_cgit statushannels
         self.LR = LR
         self.optimizer = optimizer
         self.tb_verbose = tb_verbose
+        self.batch_size = batch_size
+        self.tensorboar_dir = tensorboar_dir
         self._setup()
         self._build_model()
 
@@ -83,8 +86,8 @@ class VAE(object):
 
     def _build_model(self):
         sampled, z_mean, z_std = self.encoder()
-        dec = self.decoder(sampled)
-        dec_flat = tf.reshape(dec, [-1, 28 * 28])
+        self.dec = self.decoder(sampled)
+        dec_flat = tf.reshape(self.dec, [-1, 28 * 28])
 
         # Reconstruction loss
         self.encode_decode_loss = self.Y_flat * tf.log(1e-10 + dec_flat) \
@@ -94,19 +97,22 @@ class VAE(object):
         self.kl_div_loss = 1 + z_std - tf.square(z_mean) - tf.exp(z_std)
         self.kl_div_loss = -0.5 * tf.reduce_sum(self.kl_div_loss, 1)
         self.loss = tf.reduce_mean(self.encode_decode_loss + self.kl_div_loss)
-
-    def train(self, trainX, testX, batch_size=128, n_epoch=50, tensorboar_dir='./tflearn_logs/'):   
         optimizer = tflearn.optimizers.Adam(learning_rate=self.LR, name='Adam')
         step = tflearn.variable("step", initializer='zeros', shape=[])
         optimizer.build(step_tensor=step)
         optim_tensor = optimizer.get_tensor()
 
         trainop = tflearn.TrainOp(loss=self.loss, optimizer=optim_tensor,
-                                metric=None, batch_size=128,
+                                metric=None, batch_size=self.batch_size,
                                 step_tensor=step)
-        self.trainer = tflearn.Trainer(train_ops=trainop, tensorboard_dir=tensorboar_dir, tensorboard_verbose=self.tb_verbose)
+        self.trainer = tflearn.Trainer(train_ops=trainop, tensorboard_dir=self.tensorboar_dir, tensorboard_verbose=self.tb_verbose)
+        
+
+    def train(self, trainX, testX, n_epoch=50):   
         self.trainer.fit({self.X: trainX, self.Y: trainX}, val_feed_dicts={self.X: testX, self.Y: testX},
                     n_epoch=n_epoch, show_metric=True)
+    
+    
     
     # save and load are copied directly from tflearn source code
     def save(self, model_file):
@@ -133,9 +139,7 @@ class VAE(object):
         """
         self.trainer.restore(model_file, weights_only, **optargs)
         self.session = self.trainer.session
-        self.predictor = Evaluator([self.net],
-                                   session=self.session,
-                                   model=None)
+        self.predictor = Evaluator([self.dec], session=self.session, model=None)
         for d in tf.get_collection(tf.GraphKeys.DATA_PREP):
             if d: d.restore_params(self.session)
 

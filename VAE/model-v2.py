@@ -96,16 +96,6 @@ class VAE(object):
                                             weights_init=weights_init,
                                             bias_init=bias_init)
         net = tf.reshape(net, [-1, dummy_dim, dummy_dim, 1])
-        '''
-        net = tflearn.layers.conv.conv_2d_transpose(
-                                        net, 64, 4,
-                                        activation=activation, 
-                                        scope='L6_convt1',
-                                        strides=2,
-                                        padding='same',
-                                        bias=True,
-                                        weights_init=weights_init,
-                                        bias_init=bias_init)'''
         net = tf.layers.conv2d_transpose(net, filters=64, kernel_size=4, strides=2, 
                                         padding='same',
                                         activation=tflearn.activations.leaky_relu, 
@@ -113,16 +103,6 @@ class VAE(object):
                                         bias_initializer=bias_init,
                                         name ='L6_convt1')
         net = tflearn.layers.core.dropout(net, keep_prob, noise_shape=None, name='dropout4')
-        '''
-        net = tflearn.layers.conv.conv_2d_transpose(
-                                        net, 64, 4,
-                                        activation=activation, 
-                                        scope='L7_convt2',
-                                        strides=1,
-                                        padding='same',
-                                        bias=True,
-                                        weights_init=weights_init,
-                                        bias_init=bias_init)'''
         net = tf.layers.conv2d_transpose(net, filters=64, kernel_size=4, strides=2, 
                                         padding='same',
                                         activation=tflearn.activations.leaky_relu, 
@@ -130,16 +110,6 @@ class VAE(object):
                                         bias_initializer=bias_init,
                                         name ='L7_convt2')
         net = tflearn.layers.core.dropout(net, keep_prob, noise_shape=None, name='dropout4')
-        '''
-        net = tflearn.layers.conv.conv_2d_transpose(
-                                        net, 64, 4,
-                                        activation=activation, 
-                                        scope='L8_convt3',
-                                        strides=1,
-                                        padding='same',
-                                        bias=True,
-                                        weights_init=weights_init,
-                                        bias_init=bias_init)'''
         net = tf.layers.conv2d_transpose(net, filters=64, kernel_size=4, strides=2, 
                                         padding='same',
                                         activation=tflearn.activations.leaky_relu, 
@@ -160,11 +130,13 @@ class VAE(object):
     def build_model(self, 
         input_shape, reduced_dim, 
         starting_dim=7*7,
-        LR=1e-3, optimizer='adam', tb_verbose=3,
+        LR=1e-3, optimizer='adam',
         keep_prob=0.8,
         activation=tflearn.activations.leaky_relu,
         weights_init=tflearn.initializations.xavier(uniform=False),
-        bias_init=tflearn.initializations.xavier(uniform=False)
+        bias_init=tflearn.initializations.xavier(uniform=False),
+        tb_dir='./tflearn_logs/',
+        tb_verbose = 3
         ):
         """
         Build the VAE network
@@ -209,7 +181,7 @@ class VAE(object):
                                                 loss=_vae_loss,
                                                 metric=None,
                                                 name='output')
-        self.model = tflearn.DNN(net, tensorboard_dir='logs', tensorboard_verbose=tb_verbose)
+        self.model = tflearn.DNN(net, tensorboard_dir=tb_dir, tensorboard_verbose=tb_verbose)
         #self.generator = tflearn.DNN(dec, session=self.model.session)
 
     def train(self, x, val_x, n_epochs=10,
@@ -229,8 +201,8 @@ class VAE(object):
                        batch_size=batch_size,
                        validation_set=({'input': val_x}, {'output': val_x}),
                        snapshot_step=snapshot_step,
-                       show_metric=show_metric,
-                       run_id='ConvolutionalVAE1')
+                       show_metric=show_metric)
+                       #run_id='ConvolutionalVAE1')
     '''
     def generate(self, n_images):
         samples = np.random.randn(n_images, self.reduced_dim)
@@ -252,7 +224,7 @@ if __name__ == '__main__':
     #trainX = trainX.reshape([-1, 28, 28])
     #testX = testX.reshape([-1, 28, 28])
     vae = VAE()
-    vae.build_model(input_shape=[None, 784], reduced_dim=10,)
+    vae.build_model(input_shape=[None, 784], reduced_dim=10)
     vae.train(trainX, testX, n_epochs=10)
     
 

@@ -16,20 +16,28 @@ from tflearn.helpers.evaluator import Evaluator
 #   ----------------------------------------------
 class VAE(object):
 
-    def __init__(self, #session, 
-        reduced_dim=10, keep_prob=0.8, dec_in_channels=1,
+    def __init__(self, #session,
+        input_shape,
+        reduced_dim=10, keep_prob=0.8,
+        activation=tflearn.activations.leaky_relu,
         lr=1e-3, optimizer='adam', tb_verbose=3,
+        small_size_img = 7*7,
+        weight_init=tflearn.initializations.xavier(uniform=False),
+        bias_init=tflearn.initializations.xavier(uniform=False),
         batch_size=128, tensorboar_dir='./tflearn_logs/'):
-        tf.reset_default_graph()
-        #self.sess = session
+        #tf.reset_default_graph()
+        self.input_shape = input_shape 
         self.reduced_dim = reduced_dim
         self.keep_prob= keep_prob
-        self.dec_in_channels = dec_in_channels
+        self.activation=activation
         self.lr = lr
         self.optimizer = optimizer
         self.tb_verbose = tb_verbose
+        self.small_size_img = small_size_img
         self.batch_size = batch_size
         self.tensorboar_dir = tensorboar_dir
+        self.weight_init = weight_init
+        self.bias_init = bias_init
         self._setup()
         self._build_model()
 
@@ -38,48 +46,82 @@ class VAE(object):
         self.Y = tf.placeholder(dtype=tf.float32, shape=[None, 28, 28], name='Y')
         self.Y_flat = tf.reshape(self.Y, shape=[-1, 28 * 28])
         #self.keep_prob = tf.placeholder(dtype=tf.float32, shape=(), name='keep_prob')
-        self.reshaped_dim = [-1, 7, 7, self.dec_in_channels]
-        self.inputs_decoder = 49 * self.dec_in_channels
+        self.reshaped_dim = [-1, 7, 7, 1]
 
     def encoder(self):
-        activation = tf.nn.relu #self.lrelu
         with tf.variable_scope("encoder", reuse=None):
             x = tf.reshape(self.X, shape=[-1, 28, 28, 1])
-            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, padding='same', 
-            activation=activation, name ='dense1')
+            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, 
+                            padding='same', 
+                            activation=self.activation, 
+                            kernel_initializer=self.weight_init,
+                            bias_initializer=self.bias_init, 
+                            name ='L1_conv1')
             x = tf.nn.dropout(x, self.keep_prob)
-            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, padding='same', 
-            activation=activation, name ='conv1')
+            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, 
+                            padding='same', 
+                            activation=self.activation, 
+                            kernel_initializer=self.weight_init,
+                            bias_initializer=self.bias_init, 
+                            name ='L2_conv2')
             x = tf.nn.dropout(x, self.keep_prob)
-            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=1, padding='same', 
-            activation=activation, name ='conv2')
+            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=1, 
+                            padding='same', 
+                            activation=self.activation, 
+                            kernel_initializer=self.weight_init,
+                            bias_initializer=self.bias_init,
+                            name ='L3_conv3')
             x = tf.nn.dropout(x, self.keep_prob)
             x = tf.contrib.layers.flatten(x)
-            z_mean = tf.layers.dense(x, units=self.reduced_dim, name ='dense21')
-            z_std = tf.layers.dense(x, units=self.reduced_dim, name ='dense22')
-            eps = tf.random_normal(tf.shape(z_std), dtype=tf.float32, mean=0., stddev=1.0,
-                       name='epsilon')
+            z_mean = tf.layers.dense(x, units=self.reduced_dim, 
+                            activation=None, 
+                            kernel_initializer=self.weight_init,
+                            bias_initializer=self.bias_init,
+                            name ='L41_fc1')
+            z_std = tf.layers.dense(x, units=self.reduced_dim, 
+                            activation=None, 
+                            kernel_initializer=self.weight_init,
+                            bias_initializer=self.bias_init,
+                            name ='L42_fc2')
+            eps = tf.random_normal(tf.shape(z_std), dtype=tf.float32, 
+                            mean=0., stddev=1.0,
+                            name='epsilon')
             z = z_mean + tf.exp(z_std / 2) * eps            
             return z, z_mean, z_std
 
     def decoder(self, sampled_z):
-        activation = tf.nn.relu #self.lrelu
         
         with tf.variable_scope("decoder", reuse=None):
-            x = tf.layers.dense(sampled_z, units=self.inputs_decoder, activation=activation, name ='dense3')
+            x = tf.layers.dense(sampled_z, units=self.small_size_img, 
+                            activation= self.activation,
+                            kernel_initializer=self.weight_init,
+                            bias_initializer=self.bias_init, 
+                            name ='L5_fc3')
             #x = tf.layers.dense(x, units=self.inputs_decoder * 2 + 1, activation=self.lrelu)
             x = tf.reshape(x, self.reshaped_dim)
-            x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=2, padding='same',
-                                           activation=tf.nn.relu, name ='conv3')
+            x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=2, 
+                                        padding='same',
+                                        activation= self.activation,
+                                        kernel_initializer=self.weight_init,
+                                        bias_initializer=self.bias_init, 
+                                        name ='L6_convt1')
             x = tf.nn.dropout(x, self.keep_prob)
-            x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=1, padding='same',
-                                           activation=tf.nn.relu, name ='conv4')
+            x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=1, 
+                                        padding='same',
+                                        activation= self.activation,
+                                        kernel_initializer=self.weight_init,
+                                        bias_initializer=self.bias_init,
+                                        name ='L7_convt2')
             x = tf.nn.dropout(x, self.keep_prob)
-            x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=1, padding='same',
-                                           activation=tf.nn.relu, name ='conv5')
+            x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=1, 
+                                        padding='same',
+                                        activation= self.activation,
+                                        kernel_initializer=self.weight_init,
+                                        bias_initializer=self.bias_init,
+                                        name ='L8_convt3')
 
             x = tf.contrib.layers.flatten(x)
-            x = tf.layers.dense(x, units=28 * 28, activation=tf.nn.sigmoid, name ='dense4')
+            x = tf.layers.dense(x, units=28 * 28, activation=tf.nn.sigmoid, name ='L9_fc4')
             img = tf.reshape(x, shape=[-1, 28, 28])
 
             return img
@@ -123,7 +165,7 @@ class VAE(object):
         """
         self.trainer.save(model_file)
 
-    def load(self, model_file, weights_only=False, **optargs):
+    def load(self, model_file, trainable_variable_only=False):
         """ Load.
         Restore model weights.
         Arguments:
@@ -137,15 +179,10 @@ class VAE(object):
                      variables restored, and to control whether a new session is 
                      created for the restored variables.
         """
-        self.trainer.restore(model_file, weights_only, **optargs)
-        self.session = self.trainer.session
-        self.predictor = Evaluator([self.dec], session=self.session, model=None)
-        for d in tf.get_collection(tf.GraphKeys.DATA_PREP):
-            if d: d.restore_params(self.session)
+        self.trainer.restore(model_file,
+                            trainable_variable_only=trainable_variable_only, 
+                            verbose=True)
 
-    @staticmethod
-    def lrelu(x, alpha=0.3):
-        return tf.maximum(x, tf.multiply(x, alpha))
 
 #   ----------------------------------------------
 if __name__ == '__main__':
@@ -157,7 +194,7 @@ if __name__ == '__main__':
     trainX = trainX.reshape([-1, 28, 28])
     testX = testX.reshape([-1, 28, 28])
     #sess = tf.Session()
-    vae = VAE()
+    vae = VAE(input_shape=[-1, 28, 28])
     vae.train(trainX, testX, n_epoch=10)
     #sess.close()
 

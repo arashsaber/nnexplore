@@ -181,7 +181,7 @@ class VAE(object):
                         keep_prob=keep_prob,
                         activation=activation,
                         weights_init=weights_init,
-                        bias_init=bias_init) 
+                        bias_init=bias_init 
                         )
         net = tflearn.layers.estimator.regression(net,
                                                 optimizer=optimizer,

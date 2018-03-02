@@ -26,7 +26,7 @@ class VAE(object):
     def encoder(self, input_shape, reduced_dim, keep_prob=0.8,
         activation='LeakyReLU',
         weights_init=tflearn.initializations.xavier(uniform=False),
-        bias_init=tflearn.initializations.xavier(uniform=False)),
+        bias_init=tflearn.initializations.xavier(uniform=False)
         ):
         with tf.variable_scope("encoder", reuse=None):
             input = tflearn.layers.core.input_data(shape=input_shape, name='input')

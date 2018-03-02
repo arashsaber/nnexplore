@@ -24,7 +24,7 @@ class VAE(object):
         #self.sess = session
         self.reduced_dim = reduced_dim
         self.keep_prob= keep_prob
-        self.dec_in_channels = dec_in_cgit statushannels
+        self.dec_in_channels = dec_in_channels
         self.lr = lr
         self.optimizer = optimizer
         self.tb_verbose = tb_verbose

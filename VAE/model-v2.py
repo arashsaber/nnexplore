@@ -38,7 +38,7 @@ class VAE(object):
                                              bias=True,
                                              weights_init=weights_init,
                                              bias_init=bias_init)
-            net = tflearn.layers.core.dropout (net, keep_prob, noise_shape=None, name='dropout1')
+            net = tflearn.layers.core.dropout(net, keep_prob, noise_shape=None, name='dropout1')
             net = tflearn.layers.conv.conv_2d(net, 64, 4,
                                              activation=activation, 
                                              scope='L2_conv2',
@@ -47,7 +47,7 @@ class VAE(object):
                                              bias=True,
                                              weights_init=weights_init,
                                              bias_init=bias_init)
-            net = tflearn.layers.core.dropout (net, keep_prob, noise_shape=None, name='dropout2')
+            net = tflearn.layers.core.dropout(net, keep_prob, noise_shape=None, name='dropout2')
             net = tflearn.layers.conv.conv_2d(net, 64, 4,
                                              activation=activation, 
                                              scope='L3_conv3',
@@ -56,7 +56,7 @@ class VAE(object):
                                              bias=True,
                                              weights_init=weights_init,
                                              bias_init=bias_init)
-            net = tflearn.layers.core.dropout (ney, keep_prob, noise_shape=None, name='dropout3')
+            net = tflearn.layers.core.dropout(net, keep_prob, noise_shape=None, name='dropout3')
             net = tflearn.layers.core.flatten(net)
             z_mean = tflearn.layers.core.fully_connected(net, self.reduced_dim,
                                              activation=activation, 
@@ -86,7 +86,7 @@ class VAE(object):
         weights_init=tflearn.initializations.xavier(uniform=False),
         bias_init=tflearn.initializations.xavier(uniform=False) 
         ):
-        dummy_dim = int(np.sqrt(statting_dim))
+        dummy_dim = int(np.sqrt(starting_dim))
         with tf.variable_scope("decoder", reuse=None):
             net = tflearn.layers.core.fully_connected(sampled_z, starting_dim,
                                              activation=activation, 
@@ -104,7 +104,7 @@ class VAE(object):
                                             bias=True,
                                             weights_init=weights_init,
                                             bias_init=bias_init)
-            net = tflearn.layers.core.dropout (ney, keep_prob, noise_shape=None, name='dropout4')
+            net = tflearn.layers.core.dropout(net, keep_prob, noise_shape=None, name='dropout4')
             net = tflearn.layers.conv.conv_2d_transpose(
                                             net, 64, 4,
                                             activation=activation, 
@@ -114,7 +114,7 @@ class VAE(object):
                                             bias=True,
                                             weights_init=weights_init,
                                             bias_init=bias_init)
-            net = tflearn.layers.core.dropout (ney, keep_prob, noise_shape=None, name='dropout4')
+            net = tflearn.layers.core.dropout(net, keep_prob, noise_shape=None, name='dropout4')
             net = tflearn.layers.conv.conv_2d_transpose(
                                             net, 64, 4,
                                             activation=activation, 
@@ -131,20 +131,8 @@ class VAE(object):
                                              bias=True,
                                              weights_init=weights_init,
                                              bias_init=bias_init)
-            output = tf.reshape(x, shape=[-1, 28, 28])
+            output = tf.reshape(net, shape=[-1, 28, 28])
         return output
-
-
-    # Define VAE Loss
-    def _vae_loss(x_reconstructed, x_true):
-        # Reconstruction loss
-        encode_decode_loss = x_true * tf.log(1e-10 + x_reconstructed) \
-                            + (1 - x_true) * tf.log(1e-10 + 1 - x_reconstructed)
-        encode_decode_loss = -tf.reduce_sum(encode_decode_loss, 1)
-        # KL Divergence loss
-        kl_div_loss = 1 + z_std - tf.square(z_mean) - tf.exp(z_std)
-        kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
-        return tf.reduce_mean(encode_decode_loss + kl_div_loss)
 
 
     def build_model(self, 
@@ -167,22 +155,32 @@ class VAE(object):
         Output:
         tflearn dnn object
         """
-        z, z_mean, z_std = self.encoderencoder(self, input_shape, 
-                                            reduced_dim=reduced_dim, 
-                                            keep_prob=keep_prob,
-                                            activation=activation,
-                                            weights_init=weights_init,
-                                            bias_init=bias_init
-                                            )
+        self.reduced_dim = reduced_dim
+        z, z_mean, z_std = self.encoder(input_shape, 
+                                        reduced_dim=self.reduced_dim, 
+                                        keep_prob=keep_prob,
+                                        activation=activation,
+                                        weights_init=weights_init,
+                                        bias_init=bias_init
+                                        )
         self.Lowdimensional_rep = z
-        net = self.decoder(self, sampled_z,
+        net = self.decoder(z,
                         starting_dim=starting_dim,
-                        keep_prob=0.8,
                         keep_prob=keep_prob,
                         activation=activation,
                         weights_init=weights_init,
                         bias_init=bias_init 
                         )
+                        # Define VAE Loss
+        def _vae_loss(x_reconstructed, x_true):
+            # Reconstruction loss
+            encode_decode_loss = x_true * tf.log(1e-10 + x_reconstructed) \
+                                + (1 - x_true) * tf.log(1e-10 + 1 - x_reconstructed)
+            encode_decode_loss = -tf.reduce_sum(encode_decode_loss, 1)
+            # KL Divergence loss
+            kl_div_loss = 1 + z_std - tf.square(z_mean) - tf.exp(z_std)
+            kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
+            return tf.reduce_mean(encode_decode_loss + kl_div_loss)
         net = tflearn.layers.estimator.regression(net,
                                                 optimizer=optimizer,
                                                 learning_rate=LR,
@@ -190,7 +188,7 @@ class VAE(object):
                                                 metric=None,
                                                 name='output')
         self.model = tflearn.DNN(net, tensorboard_dir='logs', tensorboard_verbose=tb_verbose)
-        self.generator = tflearn.DNN(decoder, session=self.model.session)
+        self.generator = tflearn.DNN(self.decoder, session=self.model.session)
 
     def train(self, x, val_x, n_epochs=10,
               batch_size=128, snapshot_step=5000, show_metric=True):
@@ -209,11 +207,11 @@ class VAE(object):
                        batch_size=batch_size,
                        validation_set=({'input': val_x}, {'targets': val_x}),
                        snapshot_step=snapshot_step,
-                       show_metric=show_metric
+                       show_metric=show_metric,
                        run_id='ConvolutionalVAE1')
 
     def generate(self, n_images):
-        samples = np.randn(n_images, self.reduced_dim)
+        samples = np.random.randn(n_images, self.reduced_dim)
         reconstructed = self.generator.predict({'input_noise': samples})
         return reconstructed
 
@@ -223,7 +221,7 @@ class VAE(object):
     def load(self, filename):
         self.model.load(filename)
 #   ---------------------------------------------------
-if __name__ == __main__:
+if __name__ == '__main__':
     import os
     os.chdir('/home/arash/Desktop/python/nnexplore/VAE')
     import tflearn.datasets.mnist as mnist
@@ -233,6 +231,6 @@ if __name__ == __main__:
     testX = testX.reshape([-1, 28, 28])
     vae = VAE()
     vae.build_model(input_shape=[None, 28, 28, 1], reduced_dim=10,)
-    vae.train(trainX, testX, n_epoch=10)
+    vae.train(trainX, testX, n_epochs=10)
     
 

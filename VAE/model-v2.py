@@ -80,19 +80,21 @@ class VAE(object):
 
 
     def decoder(self, sampled_z,
+        starting_dim=7*7,
         keep_prob=0.8,
         activation='LeakyReLU',
         weights_init=tflearn.initializations.xavier(uniform=False),
         bias_init=tflearn.initializations.xavier(uniform=False) 
         ):
+        dummy_dim = int(np.sqrt(statting_dim))
         with tf.variable_scope("decoder", reuse=None):
-            net = tflearn.layers.core.fully_connected(sampled_z, self.decoder_dim,
+            net = tflearn.layers.core.fully_connected(sampled_z, starting_dim,
                                              activation=activation, 
                                              scope='L5_fc3',
                                              bias=True,
                                              weights_init=weights_init,
                                              bias_init=bias_init)
-            net = tf.reshape(net, self.reshaped_dim)
+            net = tf.reshape(net, [-1, dummy_dim, dummy_dim, 1])
             net = tflearn.layers.conv.conv_2d_transpose(
                                             net, 64, 4,
                                             activation=activation, 
@@ -123,7 +125,7 @@ class VAE(object):
                                             weights_init=weights_init,
                                             bias_init=bias_init)
             net = tflearn.layers.core.flatten(net)
-            net = tflearn.layers.core.fully_connected(sampled_z, self.decoder_dim,
+            net = tflearn.layers.core.fully_connected(net, 28*28,
                                              activation=tf.nn.sigmoid, 
                                              scope='L9_fc4',
                                              bias=True,
@@ -147,6 +149,7 @@ class VAE(object):
 
     def build_model(self, 
         input_shape, reduced_dim, 
+        starting_dim=7*7,
         LR=1e-3, optimizer='adam', tb_verbose=3,
         keep_prob=0.8,
         activation='LeakyReLU',
@@ -154,7 +157,7 @@ class VAE(object):
         bias_init=tflearn.initializations.xavier(uniform=False)
         ):
         """
-        Build the VAE netwprl
+        Build the VAE network
         Arguments:
         input_shape: 1Darray, shape of the input
         
@@ -164,13 +167,27 @@ class VAE(object):
         Output:
         tflearn dnn object
         """
-        z, z_mean, z_std = self.encoder(input_shape)
+        z, z_mean, z_std = self.encoderencoder(self, input_shape, 
+                                            reduced_dim=reduced_dim, 
+                                            keep_prob=keep_prob,
+                                            activation=activation,
+                                            weights_init=weights_init,
+                                            bias_init=bias_init
+                                            )
         self.Lowdimensional_rep = z
-        net = self.decoder(z)
+        net = self.decoder(self, sampled_z,
+                        starting_dim=starting_dim,
+                        keep_prob=0.8,
+                        keep_prob=keep_prob,
+                        activation=activation,
+                        weights_init=weights_init,
+                        bias_init=bias_init) 
+                        )
         net = tflearn.layers.estimator.regression(net,
                                                 optimizer=optimizer,
                                                 learning_rate=LR,
                                                 loss=_vae_loss,
+                                                metric=None,
                                                 name='output')
         self.model = tflearn.DNN(net, tensorboard_dir='logs', tensorboard_verbose=tb_verbose)
         self.generator = tflearn.DNN(decoder, session=self.model.session)
@@ -187,7 +204,7 @@ class VAE(object):
         :param show_metric: boolean
         """
         #self.sess.run(tf.global_variables_initializer())
-        self.model.fit({'input': x}, {'output': x}, {'keep_prob':keep_prob}, 
+        self.model.fit({'input': x}, {'output': x}, #{'keep_prob':keep_prob}, 
                        n_epoch=n_epochs,
                        batch_size=batch_size,
                        validation_set=({'input': val_x}, {'targets': val_x}),
@@ -196,10 +213,9 @@ class VAE(object):
                        run_id='ConvolutionalVAE1')
 
     def generate(self, n_images):
-        samples = np.randn(self.reduced_dim, n_images)
+        samples = np.randn(n_images, self.reduced_dim)
         reconstructed = self.generator.predict({'input_noise': samples})
         return reconstructed
-
 
     def save(self, filename):
         self.model.save(filename)
@@ -208,5 +224,15 @@ class VAE(object):
         self.model.load(filename)
 #   ---------------------------------------------------
 if __name__ == __main__:
+    import os
+    os.chdir('/home/arash/Desktop/python/nnexplore/VAE')
+    import tflearn.datasets.mnist as mnist
 
+    trainX, trainY, testX, testY = mnist.load_data(one_hot=True)
+    trainX = trainX.reshape([-1, 28, 28])
+    testX = testX.reshape([-1, 28, 28])
+    vae = VAE()
+    vae.build_model(input_shape=[None, 28, 28, 1], reduced_dim=10,)
+    vae.train(trainX, testX, n_epoch=10)
+    
 

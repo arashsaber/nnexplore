@@ -41,17 +41,20 @@ class VAE(object):
 
 
     def _setup(self):
-
+        """
+        setup the placeholders and dimensions
+        """
         self.X = tf.placeholder(dtype=tf.float32, shape=[None, 28, 28], name='X')
         self.Y = tf.placeholder(dtype=tf.float32, shape=[None, 28, 28], name='Y')
         self.Y_flat = tf.reshape(self.Y, shape=[-1, 28 * 28])
         #self.keep_prob = tf.placeholder(dtype=tf.float32, shape=(), name='keep_prob')
         self.reshaped_dim = [-1, 7, 7, 1]
-        self.Z_in = tf.placeholder(dtype=tf.float32, shape=[None, self.reduced_dim], name='Z_in')
-
+        
 
     def encoder(self):
-
+        """
+        Encoder network
+        """
         with tf.variable_scope("encoder", reuse=None):
             x = tf.reshape(self.X, shape=[-1, 28, 28, 1])
             x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, 
@@ -94,7 +97,9 @@ class VAE(object):
 
 
     def decoder(self):
-        
+        """
+        Decoder network
+        """
         with tf.variable_scope("decoder", reuse=None):
             x = tf.layers.dense(self.z, units=self.small_size_img, 
                             activation= self.activation,
@@ -129,18 +134,21 @@ class VAE(object):
 
 
     def _build_model(self):
+        """
+        Building the model and loss function
+        """
         z_mean, z_std = self.encoder()
         self.decoder()
         dec_flat = tf.reshape(self.dec, [-1, 28 * 28])
 
         # Reconstruction loss
-        self.encode_decode_loss = self.Y_flat * tf.log(1e-10 + dec_flat) \
+        encode_decode_loss = self.Y_flat * tf.log(1e-10 + dec_flat) \
                             + (1 - self.Y_flat) * tf.log(1e-10 + 1 - dec_flat)
-        self.encode_decode_loss = -tf.reduce_sum(self.encode_decode_loss, 1)
+        encode_decode_loss = -tf.reduce_sum(encode_decode_loss, 1)
         # KL Divergence loss
-        self.kl_div_loss = 1 + z_std - tf.square(z_mean) - tf.exp(z_std)
-        self.kl_div_loss = -0.5 * tf.reduce_sum(self.kl_div_loss, 1)
-        self.loss = tf.reduce_mean(self.encode_decode_loss + self.kl_div_loss)
+        kl_div_loss = 1 + z_std - tf.square(z_mean) - tf.exp(z_std)
+        kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
+        self.loss = tf.reduce_mean(encode_decode_loss + kl_div_loss)
         optimizer = tflearn.optimizers.Adam(learning_rate=self.lr, name='Adam')
         step = tflearn.variable("step", initializer='zeros', shape=[])
         optimizer.build(step_tensor=step)
@@ -149,9 +157,10 @@ class VAE(object):
         trainop = tflearn.TrainOp(loss=self.loss, optimizer=optim_tensor,
                                 metric=None, batch_size=self.batch_size,
                                 step_tensor=step)
-        self.trainer = tflearn.Trainer(train_ops=trainop, tensorboard_dir=self.tensorboar_dir, tensorboard_verbose=self.tb_verbose)
-    #def _build_generator(self):
-    #    self.reconstructed_x = self.decoder(self.Z_in)
+        self.trainer = tflearn.Trainer(train_ops=trainop, 
+                                    tensorboard_dir=self.tensorboar_dir, 
+                                    tensorboard_verbose=self.tb_verbose)
+
 
     def generate(self, num_images, z=None):
         """
@@ -166,8 +175,23 @@ class VAE(object):
         else:
             assert z.shape[1] == self.reduced_dim, 'z.shape[1] should be equal to {}.'.format(self.reduced_dim)
 
-        return self.trainer.session.run(self.dec, 
-                             feed_dict={self.z: z})
+        return self.trainer.session.run(self.dec, feed_dict={self.z: z})
+
+
+    def generator_viewer(self, num_images):
+        z = np.random.randn(num_images, self.reduced_dim)
+        generated = self.trainer.session.run(self.dec, feed_dict={self.z: z})
+        
+        n = np.sqrt(num_images/2).astype(np.int32)
+        h = 28
+        w = 28
+        img = np.zeros((h*(n+1), 2*w*n))
+        for i in range(n+1):
+            for j in range(2*n):
+                if 2*n*i+j < num_images:
+                    img[i*h:(i+1)*h, j*w:(j+1)*w] = generated[2*n*i+j, :, :].reshape(w,h)
+
+        return img
 
 
     def train(self, trainX, testX, n_epoch=50): 
@@ -211,36 +235,21 @@ if __name__ == '__main__':
     os.chdir('/home/arash/Desktop/python/nnexplore/VAE')
     import tflearn.datasets.mnist as mnist
 
+
+    # get the data
     #trainX, trainY, testX, testY = mnist.load_data(one_hot=True)
     #trainX = trainX.reshape([-1, 28, 28])
     #testX = testX.reshape([-1, 28, 28])
+    
+    # build the mode;
     vae = VAE()
     #vae.train(trainX, testX, n_epoch=1)
     #vae.save('./model/model.tfl')
+
+    # load the model
     vae.load('./model/model.tfl')
-    print(vae.generate(1))
-    plt.imshow(vae.generate(1).reshape(28,28))
+
+    # test the generator
+    plt.imshow(vae.generator_viewer(128), cmap='gray')
     plt.show()
 
-
-
-
-
-
-
-
-
-
-
-
-"""
-# Generating random data
-randoms = [np.random.normal(0, 1, n_latent) for _ in range(10)]
-imgs = sess.run(dec, feed_dict = {sampled: randoms, keep_prob: 1.0})
-imgs = [np.reshape(imgs[i], [28, 28]) for i in range(len(imgs))]
-
-for img in imgs:
-    plt.figure(figsize=(1,1))
-    plt.axis('off')
-    plt.imshow(img, cmap='gray')
-"""

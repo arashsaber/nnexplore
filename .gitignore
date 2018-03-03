@@ -3,3 +3,5 @@ VAE/mnist/*
 !VAE/mnist/.gitkeep
 VAE/tflearn_logs/*
 !VAE/tflearn_logs/.gitkeep
+VAE/model/*
+!VAE/model/.gitkeep

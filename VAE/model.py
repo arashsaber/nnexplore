@@ -16,7 +16,7 @@ from tflearn.helpers.evaluator import Evaluator
 #   ----------------------------------------------
 class VAE(object):
 
-    def __init__(self, #session,
+    def __init__(self,
         reduced_dim=10, keep_prob=0.8,
         activation=tflearn.activations.leaky_relu,
         lr=1e-3, optimizer='adam', tb_verbose=3,
@@ -24,8 +24,7 @@ class VAE(object):
         weight_init=tflearn.initializations.xavier(uniform=False),
         bias_init=tflearn.initializations.xavier(uniform=False),
         batch_size=128, tensorboar_dir='./tflearn_logs/'):
-        #tf.reset_default_graph()
-        #self.input_shape = input_shape 
+        
         self.reduced_dim = reduced_dim
         self.keep_prob= keep_prob
         self.activation=activation
@@ -40,7 +39,9 @@ class VAE(object):
         self._setup()
         self._build_model()
 
+
     def _setup(self):
+
         self.X = tf.placeholder(dtype=tf.float32, shape=[None, 28, 28], name='X')
         self.Y = tf.placeholder(dtype=tf.float32, shape=[None, 28, 28], name='Y')
         self.Y_flat = tf.reshape(self.Y, shape=[-1, 28 * 28])
@@ -48,7 +49,9 @@ class VAE(object):
         self.reshaped_dim = [-1, 7, 7, 1]
         self.Z_in = tf.placeholder(dtype=tf.float32, shape=[None, self.reduced_dim], name='Z_in')
 
+
     def encoder(self):
+
         with tf.variable_scope("encoder", reuse=None):
             x = tf.reshape(self.X, shape=[-1, 28, 28, 1])
             x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, 
@@ -86,13 +89,14 @@ class VAE(object):
             eps = tf.random_normal(tf.shape(z_std), dtype=tf.float32, 
                             mean=0., stddev=1.0,
                             name='epsilon')
-            z = z_mean + tf.exp(z_std / 2) * eps            
-            return z, z_mean, z_std
+            self.z = z_mean + tf.exp(z_std / 2) * eps            
+            return z_mean, z_std
 
-    def decoder(self, sampled_z):
+
+    def decoder(self):
         
         with tf.variable_scope("decoder", reuse=None):
-            x = tf.layers.dense(sampled_z, units=self.small_size_img, 
+            x = tf.layers.dense(self.z, units=self.small_size_img, 
                             activation= self.activation,
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init, 
@@ -119,16 +123,14 @@ class VAE(object):
                                         kernel_initializer=self.weight_init,
                                         bias_initializer=self.bias_init,
                                         name ='L8_convt3')
-
             x = tf.contrib.layers.flatten(x)
             x = tf.layers.dense(x, units=28 * 28, activation=tf.nn.sigmoid, name ='L9_fc4')
-            img = tf.reshape(x, shape=[-1, 28, 28])
+            self.dec = tf.reshape(x, shape=[-1, 28, 28])
 
-            return img
 
     def _build_model(self):
-        sampled, z_mean, z_std = self.encoder()
-        self.dec = self.decoder(sampled)
+        z_mean, z_std = self.encoder()
+        self.decoder()
         dec_flat = tf.reshape(self.dec, [-1, 28 * 28])
 
         # Reconstruction loss
@@ -151,14 +153,31 @@ class VAE(object):
     #def _build_generator(self):
     #    self.reconstructed_x = self.decoder(self.Z_in)
 
-    def generate(self, z=None):
+    def generate(self, num_images, z=None):
+        """
+        generate data from noise input
+        Arguments:
+            num_images: int, number of images to be generated.
+            z: numpy 2d array, noise input
+        Note: it will use either the num_images or the given z
+        """
         if z is None:
-            z = np.random.randn(size=self.reduced_dim)
-        return self.trainer.session.run(self.decoder(self.Z_in), 
-                             feed_dict={self.Z_in: z})
+            z = np.random.randn(num_images, self.reduced_dim)
+        else:
+            assert z.shape[1] == self.reduced_dim, 'z.shape[1] should be equal to {}.'.format(self.reduced_dim)
+
+        return self.trainer.session.run(self.dec, 
+                             feed_dict={self.z: z})
 
 
-    def train(self, trainX, testX, n_epoch=50):   
+    def train(self, trainX, testX, n_epoch=50): 
+        """
+        train the neural net
+        Arguments:
+            trainX: numpy or python array, training data
+            testX: numpy or python array, testing data
+            n_epoch: int, number of epochs
+        """ 
         self.trainer.fit({self.X: trainX, self.Y: trainX}, val_feed_dicts={self.X: testX, self.Y: testX},
                     n_epoch=n_epoch, show_metric=True)
     
@@ -173,19 +192,13 @@ class VAE(object):
         """
         self.trainer.save(model_file)
 
+
     def load(self, model_file, trainable_variable_only=False):
-        """ Load.
+        """
         Restore model weights.
         Arguments:
-            model_file: string, Model path.
-            weights_only: `bool`. If True, only weights will be restored (
-                and not intermediate variable, such as step counter, moving
-                averages...). Note that if you are using batch normalization,
-                averages will not be restored as well.
-            optargs: optional extra arguments for trainer.restore (see helpers/trainer.py)
-                     These optional arguments may be used to limit the scope of
-                     variables restored, and to control whether a new session is 
-                     created for the restored variables.
+            model_file: string, address of the saved file.
+            trainable_variable_only: boolean, set to True if you only want to load the weights
         """
         self.trainer.restore(model_file,
                             trainable_variable_only=trainable_variable_only, 
@@ -198,14 +211,15 @@ if __name__ == '__main__':
     os.chdir('/home/arash/Desktop/python/nnexplore/VAE')
     import tflearn.datasets.mnist as mnist
 
-    trainX, trainY, testX, testY = mnist.load_data(one_hot=True)
-    trainX = trainX.reshape([-1, 28, 28])
-    testX = testX.reshape([-1, 28, 28])
-    #sess = tf.Session()
+    #trainX, trainY, testX, testY = mnist.load_data(one_hot=True)
+    #trainX = trainX.reshape([-1, 28, 28])
+    #testX = testX.reshape([-1, 28, 28])
     vae = VAE()
-    vae.train(trainX, testX, n_epoch=1)
-    #sess.close()
-    plt.imshow(vae.generate())
+    #vae.train(trainX, testX, n_epoch=1)
+    #vae.save('./model/model.tfl')
+    vae.load('./model/model.tfl')
+    print(vae.generate(1))
+    plt.imshow(vae.generate(1).reshape(28,28))
     plt.show()
 
 

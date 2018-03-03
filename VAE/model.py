@@ -17,7 +17,6 @@ from tflearn.helpers.evaluator import Evaluator
 class VAE(object):
 
     def __init__(self, #session,
-        input_shape,
         reduced_dim=10, keep_prob=0.8,
         activation=tflearn.activations.leaky_relu,
         lr=1e-3, optimizer='adam', tb_verbose=3,
@@ -26,7 +25,7 @@ class VAE(object):
         bias_init=tflearn.initializations.xavier(uniform=False),
         batch_size=128, tensorboar_dir='./tflearn_logs/'):
         #tf.reset_default_graph()
-        self.input_shape = input_shape 
+        #self.input_shape = input_shape 
         self.reduced_dim = reduced_dim
         self.keep_prob= keep_prob
         self.activation=activation
@@ -47,6 +46,7 @@ class VAE(object):
         self.Y_flat = tf.reshape(self.Y, shape=[-1, 28 * 28])
         #self.keep_prob = tf.placeholder(dtype=tf.float32, shape=(), name='keep_prob')
         self.reshaped_dim = [-1, 7, 7, 1]
+        self.Z_in = tf.placeholder(dtype=tf.float32, shape=[None, self.reduced_dim], name='Z_in')
 
     def encoder(self):
         with tf.variable_scope("encoder", reuse=None):
@@ -148,7 +148,15 @@ class VAE(object):
                                 metric=None, batch_size=self.batch_size,
                                 step_tensor=step)
         self.trainer = tflearn.Trainer(train_ops=trainop, tensorboard_dir=self.tensorboar_dir, tensorboard_verbose=self.tb_verbose)
-        
+    #def _build_generator(self):
+    #    self.reconstructed_x = self.decoder(self.Z_in)
+
+    def generate(self, z=None):
+        if z is None:
+            z = np.random.randn(size=self.reduced_dim)
+        return self.trainer.session.run(self.decoder(self.Z_in), 
+                             feed_dict={self.Z_in: z})
+
 
     def train(self, trainX, testX, n_epoch=50):   
         self.trainer.fit({self.X: trainX, self.Y: trainX}, val_feed_dicts={self.X: testX, self.Y: testX},
@@ -169,7 +177,7 @@ class VAE(object):
         """ Load.
         Restore model weights.
         Arguments:
-            model_file: `str`. Model path.
+            model_file: string, Model path.
             weights_only: `bool`. If True, only weights will be restored (
                 and not intermediate variable, such as step counter, moving
                 averages...). Note that if you are using batch normalization,
@@ -194,11 +202,11 @@ if __name__ == '__main__':
     trainX = trainX.reshape([-1, 28, 28])
     testX = testX.reshape([-1, 28, 28])
     #sess = tf.Session()
-    vae = VAE(input_shape=[-1, 28, 28])
-    vae.train(trainX, testX, n_epoch=10)
+    vae = VAE()
+    vae.train(trainX, testX, n_epoch=1)
     #sess.close()
-
-
+    plt.imshow(vae.generate())
+    plt.show()
 
 
 

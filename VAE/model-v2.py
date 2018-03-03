@@ -204,7 +204,7 @@ class VAE(object):
                        show_metric=show_metric)
                        #run_id='ConvolutionalVAE1')
     '''
-    def generate(self, n_images):
+    def generator(self, n_images):
         samples = np.random.randn(n_images, self.reduced_dim)
         reconstructed = self.generator.predict({'input_noise': samples})
         return reconstructed

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """
-The file contains a Variational Autoencoder in tflearn.
+The file contains a Variational Autoencoder in tensorflow with application of tflearn trainer.
 
 Copyright (c) 2017
 Licensed under the MIT License (see LICENSE for details)

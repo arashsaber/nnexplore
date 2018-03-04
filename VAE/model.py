@@ -162,6 +162,14 @@ class VAE(object):
                                     tensorboard_verbose=self.tb_verbose)
 
 
+    def reduce_dimension(self, x):
+        """
+        Produce the z vectors for the given inputs
+        Arguments:
+            x: input image
+        """
+        return self.trainer.session.run(self.z, feed_dict={self.X: x.reshape((-1,28,28))})
+
     def generate(self, num_images, z=None):
         """
         generate data from noise input
@@ -179,6 +187,11 @@ class VAE(object):
 
 
     def generator_viewer(self, num_images):
+         """
+        produce an image to view generated data
+        Arguments:
+            num_images: int, number of images to be generated.
+        """
         z = np.random.randn(num_images, self.reduced_dim)
         generated = self.trainer.session.run(self.dec, feed_dict={self.z: z})
         
@@ -237,12 +250,14 @@ if __name__ == '__main__':
 
 
     # get the data
-    #trainX, trainY, testX, testY = mnist.load_data(one_hot=True)
-    #trainX = trainX.reshape([-1, 28, 28])
-    #testX = testX.reshape([-1, 28, 28])
+    trainX, trainY, testX, testY = mnist.load_data(one_hot=True)
+    trainX = trainX.reshape([-1, 28, 28])
+    testX = testX.reshape([-1, 28, 28])
     
-    # build the mode;
+    # build the model
     vae = VAE()
+
+    # train and save the model
     #vae.train(trainX, testX, n_epoch=1)
     #vae.save('./model/model.tfl')
 
@@ -251,5 +266,10 @@ if __name__ == '__main__':
 
     # test the generator
     plt.imshow(vae.generator_viewer(128), cmap='gray')
-    plt.show()
+    #plt.show()
+
+    # test the dimensionality reduction
+    z = vae.reduce_dimension(trainX[10:15,:,:])
+    print(z.shape)
+    print(z)
 

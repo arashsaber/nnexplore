@@ -162,11 +162,40 @@ class VAE(object):
                                     tensorboard_verbose=self.tb_verbose)
 
 
+    def reconstruct(self,x):
+        """
+        Produce the reconstruction for input images x
+        Arguments:
+            x: 3d array [num_images,h,w], input images
+        """
+        return self.trainer.session.run(self.dec, feed_dict={self.X: x.reshape((-1,28,28))})
+
+
+    def reconstructor_viewer(self, x):
+        """
+        produce an image to view reconstructed data together with the original data
+        Arguments:
+            x: 3d array [num_images,h,w], input images
+        """  
+        reconstructed = self.reconstruct(x)
+        
+        num_images = x.shape[0]
+        h, w = x.shape[1], x.shape[2]
+
+        n = np.sqrt(num_images).astype(np.int32)
+        img = np.ones((h*n, 2*w*n+2*n))
+        for j in range(n):
+            for i in range(n):
+                img[i*h:(i+1)*h, j*2*w+2*j:(j+1)*2*w+2*j] = np.hstack((reconstructed[n*j+i, :, :].reshape(h,w), x[n*j+i, :, :].reshape(h,w)))             
+
+        return img
+
+
     def reduce_dimension(self, x):
         """
         Produce the z vectors for the given inputs
         Arguments:
-            x: input image
+            x: 3d array [num_images,h,w], input images
         """
         return self.trainer.session.run(self.z, feed_dict={self.X: x.reshape((-1,28,28))})
 
@@ -187,14 +216,13 @@ class VAE(object):
 
 
     def generator_viewer(self, num_images):
-         """
+        """
         produce an image to view generated data
         Arguments:
             num_images: int, number of images to be generated.
-        """
-        z = np.random.randn(num_images, self.reduced_dim)
-        generated = self.trainer.session.run(self.dec, feed_dict={self.z: z})
-        
+        """  
+        generated = self.generate(num_images)
+
         n = np.sqrt(num_images/2).astype(np.int32)
         h = 28
         w = 28
@@ -215,9 +243,9 @@ class VAE(object):
             testX: numpy or python array, testing data
             n_epoch: int, number of epochs
         """ 
-        self.trainer.fit({self.X: trainX, self.Y: trainX}, val_feed_dicts={self.X: testX, self.Y: testX},
+        self.trainer.fit({self.X: trainX, self.Y: trainX}, 
+                    val_feed_dicts={self.X: testX, self.Y: testX},
                     n_epoch=n_epoch, show_metric=True)
-    
     
     
     # save and load are copied directly from tflearn source code
@@ -271,5 +299,16 @@ if __name__ == '__main__':
     # test the dimensionality reduction
     z = vae.reduce_dimension(trainX[10:15,:,:])
     print(z.shape)
-    print(z)
+
+    # check the reconstruction
+    plt.figure()
+    plt.imshow(np.hstack((trainX[10,:,:].reshape(28,28), 
+                        vae.reconstruct(trainX[10,:,:]).reshape(28,28)
+                        )), cmap='gray')
+    plt.figure()
+    plt.imshow(vae.reconstructor_viewer(trainX[:128,:,:]), cmap='gray')
+    
+    plt.show()
+
+
 

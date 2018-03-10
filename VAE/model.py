@@ -331,10 +331,7 @@ class VAE(object):
 
 #   ----------------------------------------------
 if __name__ == '__main__':
-    import os
-    #os.chdir('/home/arash/Desktop/python/nnexplore/VAE')
     import tflearn.datasets.mnist as mnist
-
 
     # get the data
     trainX, trainY, testX, testY = mnist.load_data(one_hot=True)

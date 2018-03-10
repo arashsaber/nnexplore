@@ -28,18 +28,23 @@ We start by downloading the MNIST dataset:
   
     plt.imshow(vae.generator_viewer(128), cmap='gray')
 
+<img src="https://github.com/arashsaber/nnexplore/tree/lenovo/VAE/Figs/generated.png" width="400">
+
 **Testing the dimensionality reduction:**
   
     z = vae.reduce_dimension(trainX[10:15,:,:])
 
 **Testing the reconstruction:**
-    plt.figure()
+
     plt.imshow(np.hstack((trainX[10,:,:].reshape(28,28), 
                         vae.reconstruct(trainX[10,:,:]).reshape(28,28)
                         )), cmap='gray')
-    plt.figure()
+
+<img src="https://github.com/arashsaber/nnexplore/tree/lenovo/VAE/Figs/reconstructed0.png" width="400">
+
     plt.imshow(vae.reconstructor_viewer(trainX[:128,:,:]), cmap='gray')
-    
+
+<img src="https://github.com/arashsaber/nnexplore/tree/lenovo/VAE/Figs/reconstructed.png" width="400">   
     
 **Testing the 2D-visualizations:**
 Let us now test the 2D viisualization through VAEs:
@@ -47,15 +52,22 @@ Let us now test the 2D viisualization through VAEs:
     # build the model
     vae2d = VAE(reduced_dim=2)
 
-    #vae2d.train(trainX, testX, n_epoch=10)
-    #vae2d.save('./VAE/saved_models/model2d.tfl')
+    # training and saving
+    vae2d.train(trainX, testX, n_epoch=10)
+    vae2d.save('./VAE/saved_models/model2d.tfl')
     
     # load the model
     vae2d.load('./VAE/saved_models/model2d.tfl')
     
     
 **Displaying the scatter plot of 2d latent features:**
+
     vae2d.visualization_2d(testX[:1000,:,:], testY[:1000,:])
 
+<img src="https://github.com/arashsaber/nnexplore/tree/lenovo/VAE/Figs/scatterplot.png" width="400">
+
 **Displaying the spectrum of the generated images:**
+
     vae2d.spectum_2d(25)
+
+<img src="https://github.com/arashsaber/nnexplore/tree/lenovo/VAE/Figs/spectrum.png" width="400">

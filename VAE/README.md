@@ -28,7 +28,7 @@ We start by downloading the MNIST dataset:
   
     plt.imshow(vae.generator_viewer(128), cmap='gray')
 
-<img src="https://github.com/arashsaber/nnexplore/blob/lenovo/VAE/Figs/generated.png" width="600">
+<img src="./VAE/Figs/generated.png" width="600">
 
 **Testing the dimensionality reduction:**
   
@@ -40,11 +40,11 @@ We start by downloading the MNIST dataset:
                         vae.reconstruct(trainX[10,:,:]).reshape(28,28)
                         )), cmap='gray')
 
-<img src="https://github.com/arashsaber/nnexplore/blob/lenovo/VAE/Figs/reconstructed0.png" width="400">
+<img src="./VAE/Figs/reconstructed0.png" width="400">
 
     plt.imshow(vae.reconstructor_viewer(trainX[:128,:,:]), cmap='gray')
 
-<img src="https://github.com/arashsaber/nnexplore/blob/lenovo/VAE/Figs/reconstructed.png" width="600">   
+<img src="./VAE/Figs/reconstructed.png" width="600">   
     
 **Testing the 2D-visualizations:**
 Let us now test the 2D viisualization through VAEs:
@@ -64,10 +64,10 @@ Let us now test the 2D viisualization through VAEs:
 
     vae2d.visualization_2d(testX[:1000,:,:], testY[:1000,:])
 
-<img src="https://github.com/arashsaber/nnexplore/blob/lenovo/VAE/Figs/scatterplot.png" width="600">
+<img src="./VAE/Figs/scatterplot.png" width="600">
 
 **Displaying the spectrum of the generated images:**
 
     vae2d.spectum_2d(25)
 
-<img src="https://github.com/arashsaber/nnexplore/blob/lenovo/VAE/Figs/spectrum.png" width="600">
+<img src="./VAE/Figs/spectrum.png" width="600">

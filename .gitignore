@@ -1,7 +1,7 @@
 test.py
 mnist/*
 !mnist/.gitkeep
-VAE/model-v2.py
+VAE/model_v2.py
 VAE/tflearn_logs/*
 !VAE/tflearn_logs/.gitkeep
 VAE/saved_models/*

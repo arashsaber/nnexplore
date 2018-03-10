@@ -23,8 +23,9 @@ class VAE(object):
         small_size_img = 7*7,
         weight_init=tflearn.initializations.xavier(uniform=False),
         bias_init=tflearn.initializations.xavier(uniform=False),
-        batch_size=128, tensorboar_dir='./tflearn_logs/'):
-        
+        batch_size=128, tensorboar_dir='./VAE/tflearn_logs/'):
+        tf.reset_default_graph()
+        self.graph = tf.get_default_graph()
         self.reduced_dim = reduced_dim
         self.keep_prob= keep_prob
         self.activation=activation
@@ -48,7 +49,8 @@ class VAE(object):
         self.Y = tf.placeholder(dtype=tf.float32, shape=[None, 28, 28], name='Y')
         self.Y_flat = tf.reshape(self.Y, shape=[-1, 28 * 28])
         #self.keep_prob = tf.placeholder(dtype=tf.float32, shape=(), name='keep_prob')
-        self.reshaped_dim = [-1, 7, 7, 1]
+        dummy_dim = int(np.sqrt(self.small_size_img))
+        self.reshaped_dim = [-1, dummy_dim, dummy_dim, 1] #[-1, 7, 7, 1]
         
 
     def encoder(self):
@@ -63,6 +65,7 @@ class VAE(object):
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init, 
                             name ='L1_conv1')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = tf.nn.dropout(x, self.keep_prob)
             x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, 
                             padding='same', 
@@ -70,6 +73,7 @@ class VAE(object):
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init, 
                             name ='L2_conv2')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = tf.nn.dropout(x, self.keep_prob)
             x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=1, 
                             padding='same', 
@@ -77,6 +81,7 @@ class VAE(object):
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init,
                             name ='L3_conv3')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = tf.nn.dropout(x, self.keep_prob)
             x = tf.contrib.layers.flatten(x)
             z_mean = tf.layers.dense(x, units=self.reduced_dim, 
@@ -84,15 +89,17 @@ class VAE(object):
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init,
                             name ='L41_fc1')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, z_mean)
             z_std = tf.layers.dense(x, units=self.reduced_dim, 
                             activation=None, 
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init,
                             name ='L42_fc2')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, z_std)
             eps = tf.random_normal(tf.shape(z_std), dtype=tf.float32, 
                             mean=0., stddev=1.0,
                             name='epsilon')
-            self.z = z_mean + tf.exp(z_std / 2) * eps            
+            self.z = z_mean + tf.exp(z_std / 2) * eps           
             return z_mean, z_std
 
 
@@ -106,6 +113,8 @@ class VAE(object):
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init, 
                             name ='L5_fc3')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            
             #x = tf.layers.dense(x, units=self.inputs_decoder * 2 + 1, activation=self.lrelu)
             x = tf.reshape(x, self.reshaped_dim)
             x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=2, 
@@ -114,6 +123,7 @@ class VAE(object):
                                         kernel_initializer=self.weight_init,
                                         bias_initializer=self.bias_init, 
                                         name ='L6_convt1')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = tf.nn.dropout(x, self.keep_prob)
             x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=1, 
                                         padding='same',
@@ -121,6 +131,7 @@ class VAE(object):
                                         kernel_initializer=self.weight_init,
                                         bias_initializer=self.bias_init,
                                         name ='L7_convt2')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = tf.nn.dropout(x, self.keep_prob)
             x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=1, 
                                         padding='same',
@@ -128,8 +139,10 @@ class VAE(object):
                                         kernel_initializer=self.weight_init,
                                         bias_initializer=self.bias_init,
                                         name ='L8_convt3')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = tf.contrib.layers.flatten(x)
             x = tf.layers.dense(x, units=28 * 28, activation=tf.nn.sigmoid, name ='L9_fc4')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             self.dec = tf.reshape(x, shape=[-1, 28, 28])
 
 
@@ -157,7 +170,7 @@ class VAE(object):
         trainop = tflearn.TrainOp(loss=self.loss, optimizer=optim_tensor,
                                 metric=None, batch_size=self.batch_size,
                                 step_tensor=step)
-        self.trainer = tflearn.Trainer(train_ops=trainop, 
+        self.trainer = tflearn.Trainer(train_ops=trainop, graph=self.graph,
                                     tensorboard_dir=self.tensorboar_dir, 
                                     tensorboard_verbose=self.tb_verbose)
 
@@ -186,7 +199,11 @@ class VAE(object):
         img = np.ones((h*n, 2*w*n+2*n))
         for j in range(n):
             for i in range(n):
-                img[i*h:(i+1)*h, j*2*w+2*j:(j+1)*2*w+2*j] = np.hstack((reconstructed[n*j+i, :, :].reshape(h,w), x[n*j+i, :, :].reshape(h,w)))             
+                img[i*h:(i+1)*h, j*2*w+2*j:(j+1)*2*w+2*j] = \
+                            np.hstack((
+                                x[n*j+i, :, :].reshape(h,w),
+                                reconstructed[n*j+i, :, :].reshape(h,w), 
+                            ))             
 
         return img
 
@@ -199,7 +216,23 @@ class VAE(object):
         """
         return self.trainer.session.run(self.z, feed_dict={self.X: x.reshape((-1,28,28))})
 
-    def generate(self, num_images, z=None):
+    
+    def visualization_2d(self, x, y):
+        """
+        2d visualization for the case reduced_dim =2
+        Arguments:
+            x: 3d array [num_images,h,w], input images
+            y: 2d array [num_images, label], labels of the classes
+        """
+        z = self.trainer.session.run(self.z, feed_dict={self.X: x.reshape((-1,28,28))})
+        assert z.shape[1] == 2, 'reduced_dim, i.e., dimension of z, must be 2 for this display to work'
+        plt.figure(figsize=(10, 8)) 
+        plt.scatter(z[:, 0], z[:, 1], c=np.argmax(y, axis=1))
+        plt.colorbar()
+        plt.grid()
+
+
+    def generate(self, num_images=None, z=None):
         """
         generate data from noise input
         Arguments:
@@ -230,9 +263,35 @@ class VAE(object):
         for i in range(n+1):
             for j in range(2*n):
                 if 2*n*i+j < num_images:
-                    img[i*h:(i+1)*h, j*w:(j+1)*w] = generated[2*n*i+j, :, :].reshape(w,h)
+                    img[i*h:(i+1)*h, j*w:(j+1)*w] = \
+                            generated[2*n*i+j, :, :].reshape(w,h)
 
         return img
+
+
+    def spectum_2d(self, num_imgs_row):
+        """
+        spectrum of the changes of generator
+        Arguments:
+            num_imgs_row: int, number of images in each row
+        """
+        h = w = 28
+        
+        x = np.linspace(-2.5, 2.5, num_imgs_row)
+        img = np.empty((h*num_imgs_row, w*num_imgs_row))
+        for i, xi in enumerate(x):
+            z = np.vstack(([xi]*num_imgs_row, x)).transpose()
+            generated = self.generate(z=z)
+            dummy = np.empty((h, 0), dtype=float)
+            for j in range(generated.shape[0]):
+                dummy = np.hstack((
+                    dummy, generated[j,:,:].reshape(w,h)
+                    ))
+
+            img[i*h:(i+1)*h, :] = dummy 
+
+        plt.figure(figsize=(8, 8))        
+        plt.imshow(img, cmap="gray")
 
 
     def train(self, trainX, testX, n_epoch=50): 
@@ -273,7 +332,7 @@ class VAE(object):
 #   ----------------------------------------------
 if __name__ == '__main__':
     import os
-    os.chdir('/home/arash/Desktop/python/nnexplore/VAE')
+    #os.chdir('/home/arash/Desktop/python/nnexplore/VAE')
     import tflearn.datasets.mnist as mnist
 
 
@@ -281,26 +340,25 @@ if __name__ == '__main__':
     trainX, trainY, testX, testY = mnist.load_data(one_hot=True)
     trainX = trainX.reshape([-1, 28, 28])
     testX = testX.reshape([-1, 28, 28])
+    # ----------------------------------------
     
     # build the model
     vae = VAE()
 
     # train and save the model
-    #vae.train(trainX, testX, n_epoch=1)
-    #vae.save('./model/model.tfl')
+    #vae.train(trainX, testX, n_epoch=10)
+    #vae.save('./VAE/saved_models/model.tfl')
 
     # load the model
-    vae.load('./model/model.tfl')
+    vae.load('./VAE/saved_models/model.tfl')
 
     # test the generator
     plt.imshow(vae.generator_viewer(128), cmap='gray')
-    #plt.show()
 
     # test the dimensionality reduction
     z = vae.reduce_dimension(trainX[10:15,:,:])
-    print(z.shape)
 
-    # check the reconstruction
+    # test the reconstruction
     plt.figure()
     plt.imshow(np.hstack((trainX[10,:,:].reshape(28,28), 
                         vae.reconstruct(trainX[10,:,:]).reshape(28,28)
@@ -309,6 +367,23 @@ if __name__ == '__main__':
     plt.imshow(vae.reconstructor_viewer(trainX[:128,:,:]), cmap='gray')
     
     plt.show()
+    
+    # ----------------------------------------
+    # Visualization through VAEs
+    
+    # build the model
+    vae2d = VAE(reduced_dim=2)
 
+    #vae2d.train(trainX, testX, n_epoch=10)
+    #vae2d.save('./VAE/saved_models/model2d.tfl')
+    
+    # load the model
+    vae2d.load('./VAE/saved_models/model2d.tfl')
+    
+    # the scatter plot of 2d latent features
+    vae2d.visualization_2d(testX[:1000,:,:], testY[:1000,:])
 
+    # the spectrum of the generated images
+    vae2d.spectum_2d(25)
 
+    plt.show()

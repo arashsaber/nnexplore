@@ -343,7 +343,7 @@ if __name__ == '__main__':
     vae = VAE()
 
     # train and save the model
-    #vae.train(trainX, testX, n_epoch=10)
+    #vae.train(trainX, testX, n_epoch=50)
     #vae.save('./VAE/saved_models/model.tfl')
 
     # load the model
@@ -371,7 +371,7 @@ if __name__ == '__main__':
     # build the model
     vae2d = VAE(reduced_dim=2)
 
-    #vae2d.train(trainX, testX, n_epoch=10)
+    #vae2d.train(trainX, testX, n_epoch=50)
     #vae2d.save('./VAE/saved_models/model2d.tfl')
     
     # load the model

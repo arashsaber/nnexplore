@@ -19,10 +19,10 @@ VAE/saved_models/*
 
 # Advarsarial Autoencoder
 #   -----------------------------------------
-VAE/tf_logs/*
-!VAE/tf_logs/.gitkeep
-GAN/saved_models/*
-!GAN/saved_models/.gitkeep
+AdvarsarialAE/tf_logs/*
+!AdvarsarialAE/tf_logs/.gitkeep
+AdvarsarialAE/saved_models/*
+!AdvarsarialAE/saved_models/.gitkeep
 
 
 

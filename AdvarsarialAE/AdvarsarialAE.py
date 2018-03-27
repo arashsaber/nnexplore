@@ -14,13 +14,12 @@ import matplotlib.pyplot as plt
 import tflearn
 from tflearn.helpers.evaluator import Evaluator
 #   ----------------------------------------------
-class VAE(object):
+class AAE(object):
 
     def __init__(self,
         input_shape=[28, 28],
         reduced_dim=10, 
         batch_size=128, channel_size=128,
-        keep_prob=0.8,
         activation=tflearn.activations.leaky_relu,
         lr=1e-3, optimizer='adam', tb_verbose=3,
         weight_init=tflearn.initializations.xavier(uniform=False),
@@ -30,7 +29,6 @@ class VAE(object):
         self.graph = tf.get_default_graph()
         self.input_shape = input_shape
         self.reduced_dim = reduced_dim
-        self.keep_prob= keep_prob
         self.activation=activation
         self.lr = lr
         self.optimizer = optimizer
@@ -38,6 +36,8 @@ class VAE(object):
         self.small_size_img = int(input_shape[0]*input_shape[1]/16)
         self.batch_size = batch_size
         self.channel_size = channel_size
+        dummy_dim = int(np.sqrt(self.small_size_img))
+        self.reshaped_dim = [-1, dummy_dim, dummy_dim, self.channel_size] #[-1, 7, 7, 1]
         self.tensorboar_dir = tensorboar_dir
         self.weight_init = weight_init
         self.bias_init = bias_init
@@ -51,23 +51,21 @@ class VAE(object):
         """
         self.X = tf.placeholder(dtype=tf.float32, shape=[None, self.input_shape[0], 
                                 self.input_shape[1]], name='X')
+        self.Z = tf.placeholder(dtype=tf.float32, shape=[None, self.reduced_dim], name='Z')
         self.Y = tf.placeholder(dtype=tf.float32, shape=[None, self.input_shape[0], 
                                 self.input_shape[1]], name='Y')
         self.Y_flat = tf.reshape(self.Y, shape=[-1, self.input_shape[0] * self.input_shape[1]])
-        #self.keep_prob = tf.placeholder(dtype=tf.float32, shape=(), name='keep_prob')
-        dummy_dim = int(np.sqrt(self.small_size_img))
-        self.reshaped_dim = [-1, dummy_dim, dummy_dim, self.channel_size] #[-1, 7, 7, 1]
-        self.real_distribution = tf.placeholder(dtype=tf.float32, 
+        self.Z_prior = tf.placeholder(dtype=tf.float32, 
                                                 shape=[self.batch_size,  self.reduced_dim], 
-                                                name='Real_distribution')
+                                                name='Z_prior')
 
 
-    def encoder(self):
+    def encoder(self, x, reuse=None):
         """
         Encoder network
         """
         with tf.variable_scope("encoder", reuse=None):
-            x = tf.reshape(self.X, shape=[-1, self.input_shape[0], self.input_shape[1], 1])
+            x = tf.reshape(x, shape=[-1, self.input_shape[0], self.input_shape[1], 1])
             x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, 
                             padding='same', 
                             activation=self.activation, 
@@ -102,16 +100,18 @@ class VAE(object):
                             name ='enc_L6_fc')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
 
-            self.z = x
+            return x
 
 
-    def decoder(self):
+    def decoder(self, z, reuse=False):
         """
         Decoder network
         """
         dim = int(self.input_shape[0]*self.input_shape[1]*self.channel_size/16)
-        with tf.variable_scope("decoder", reuse=None):
-            x = tf.layers.dense(self.z, units=1024, 
+        if reuse:
+            tf.get_variable_scope().reuse_variables()
+        with tf.variable_scope("decoder", reuse=reuse):
+            x = tf.layers.dense(z, units=1024, 
                             activation= None,
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init, 
@@ -147,15 +147,18 @@ class VAE(object):
                                         bias_initializer=self.bias_init, 
                                         name ='dec_L6_convt')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
-            self.dec = self.dec = tf.reshape(x, shape=[-1, 28, 28])
+            
+            return tf.reshape(x, shape=[-1, 28, 28])
 
 
-    def discriminator(self):
+    def discriminator(self, z, reuse=False):
         """
         Discriminator network
         """
-        with tf.name_scope('discriminator'):
-            x = tf.layers.dense(self.z, units=1000, 
+        if reuse:
+            tf.get_variable_scope().reuse_variables()
+        with tf.variable_scope('discriminator', reuse=reuse):
+            x = tf.layers.dense(z, units=1000, 
                             activation= self.activation,
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init, 
@@ -171,20 +174,33 @@ class VAE(object):
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = self.activation(x)
             x = tf.layers.dense(self.z, units=1, 
-                            activation= None,
+                            activation= tf.nn.sigmoid,
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init, 
                             name ='dis_L4_fc')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
-            self.dis = x
+            return x
             
     def _build_model(self):
         """
         Building the model and loss function
         """
-        z_mean, z_std = self.encoder()
-        self.decoder()
-        dec_flat = tf.reshape(self.dec, [-1, self.input_shape[0] * self.input_shape[1]])
+        with tf.variable_scope(tf.get_variable_scope()):
+            self.z = self.encoder(self.X)
+            self.y = self.decoder(self.z)
+            y_flat = tf.reshape(self.y, [-1, self.input_shape[0] * self.input_shape[1]])
+
+        with tf.variable_scope(tf.get_variable_scope()):
+            d_real = self.discriminator(self.Z_prior)
+            d_fake = self.discriminator(self.z, reuse=True)
+
+        # loss
+        self.rec_loss = tf.reduce_mean(tf.square(self.Y_flat - y_flat))
+
+        self.gen_loss = -tf.reduce_mean(tf.log(d_fake + 1e-10))
+        self.dis_loss = -tf.reduce_mean(tf.log(d_real + 1e-10) + tf.log(1. - d_fake + 1e-10))
+
+
 
         # Reconstruction loss
         encode_decode_loss = self.Y_flat * tf.log(1e-10 + dec_flat) \

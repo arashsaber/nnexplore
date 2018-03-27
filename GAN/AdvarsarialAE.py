@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 """
-The file contains a Variational Autoencoder in tensorflow.
+The file contains a Advarsarial Autoencoder in tensorflow.
 
-Copyright (c) 2017
+Copyright (c) 2018
 Licensed under the MIT License (see LICENSE for details)
 Written by Arash Tehrani
 """
@@ -18,12 +18,14 @@ class VAE(object):
 
     def __init__(self,
         input_shape=[28, 28],
-        reduced_dim=10, keep_prob=0.8,
+        reduced_dim=10, 
+        batch_size=128, channel_size=128,
+        keep_prob=0.8,
         activation=tflearn.activations.leaky_relu,
         lr=1e-3, optimizer='adam', tb_verbose=3,
         weight_init=tflearn.initializations.xavier(uniform=False),
         bias_init=tflearn.initializations.xavier(uniform=False),
-        batch_size=128, tensorboar_dir='./VAE/tflearn_logs/'):
+        tensorboar_dir='./VAE/tflearn_logs/'):
         tf.reset_default_graph()
         self.graph = tf.get_default_graph()
         self.input_shape = input_shape
@@ -35,6 +37,7 @@ class VAE(object):
         self.tb_verbose = tb_verbose
         self.small_size_img = int(input_shape[0]*input_shape[1]/16)
         self.batch_size = batch_size
+        self.channel_size = channel_size
         self.tensorboar_dir = tensorboar_dir
         self.weight_init = weight_init
         self.bias_init = bias_init
@@ -46,13 +49,18 @@ class VAE(object):
         """
         setup the placeholders and dimensions
         """
-        self.X = tf.placeholder(dtype=tf.float32, shape=[None, self.input_shape[0], self.input_shape[1]], name='X')
-        self.Y = tf.placeholder(dtype=tf.float32, shape=[None, self.input_shape[0], self.input_shape[1]], name='Y')
+        self.X = tf.placeholder(dtype=tf.float32, shape=[None, self.input_shape[0], 
+                                self.input_shape[1]], name='X')
+        self.Y = tf.placeholder(dtype=tf.float32, shape=[None, self.input_shape[0], 
+                                self.input_shape[1]], name='Y')
         self.Y_flat = tf.reshape(self.Y, shape=[-1, self.input_shape[0] * self.input_shape[1]])
         #self.keep_prob = tf.placeholder(dtype=tf.float32, shape=(), name='keep_prob')
         dummy_dim = int(np.sqrt(self.small_size_img))
-        self.reshaped_dim = [-1, dummy_dim, dummy_dim, 1] #[-1, 7, 7, 1]
-        
+        self.reshaped_dim = [-1, dummy_dim, dummy_dim, self.channel_size] #[-1, 7, 7, 1]
+        self.real_distribution = tf.placeholder(dtype=tf.float32, 
+                                                shape=[self.batch_size,  self.reduced_dim], 
+                                                name='Real_distribution')
+
 
     def encoder(self):
         """
@@ -65,88 +73,111 @@ class VAE(object):
                             activation=self.activation, 
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init, 
-                            name ='L1_conv1')
+                            name ='enc_L1_conv')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = tf.nn.dropout(x, self.keep_prob)
-            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, 
+            x = tf.layers.conv2d(x, filters=128, kernel_size=4, strides=2, 
                             padding='same', 
-                            activation=self.activation, 
+                            activation=None, 
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init, 
-                            name ='L2_conv2')
+                            name ='enc_L2_conv')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
-            x = tf.nn.dropout(x, self.keep_prob)
-            x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=1, 
-                            padding='same', 
-                            activation=self.activation, 
-                            kernel_initializer=self.weight_init,
-                            bias_initializer=self.bias_init,
-                            name ='L3_conv3')
+            x = tf.layers.batch_normalization(x, name='enc_L3_bn')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
-            x = tf.nn.dropout(x, self.keep_prob)
-            x = tf.contrib.layers.flatten(x)
-            z_mean = tf.layers.dense(x, units=self.reduced_dim, 
+            x = self.activation(x)
+            x = tf.layers.dense(x, units=1024, 
                             activation=None, 
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init,
-                            name ='L41_fc1')
-            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, z_mean)
-            z_std = tf.layers.dense(x, units=self.reduced_dim, 
+                            name ='enc_L4_fc')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            x = tf.layers.batch_normalization(x, name='enc_L5_bn')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            x = self.activation(x)
+            x = tf.layers.dense(x, units=self.reduced_dim, 
                             activation=None, 
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init,
-                            name ='L42_fc2')
-            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, z_std)
-            eps = tf.random_normal(tf.shape(z_std), dtype=tf.float32, 
-                            mean=0., stddev=1.0,
-                            name='epsilon')
-            self.z = z_mean + tf.exp(z_std / 2) * eps           
-            return z_mean, z_std
+                            name ='enc_L6_fc')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+
+            self.z = x
 
 
     def decoder(self):
         """
         Decoder network
         """
+        dim = int(self.input_shape[0]*self.input_shape[1]*self.channel_size/16)
         with tf.variable_scope("decoder", reuse=None):
-            x = tf.layers.dense(self.z, units=self.small_size_img, 
+            x = tf.layers.dense(self.z, units=1024, 
+                            activation= None,
+                            kernel_initializer=self.weight_init,
+                            bias_initializer=self.bias_init, 
+                            name ='dec_L1_fc')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            x = tf.layers.batch_normalization(x, name='dec_L2_bn')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            x = self.activation(x)
+            x = tf.layers.dense(self.z, units=dim, 
+                            activation= None,
+                            kernel_initializer=self.weight_init,
+                            bias_initializer=self.bias_init, 
+                            name ='dec_L3_fc')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            x = tf.layers.batch_normalization(x, name='dec_L4_bn')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            x = self.activation(x)
+            x = tf.reshape(x, shape=self.reshaped_dim)
+            x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=2, 
+                                        padding='same',
+                                        activation= None,
+                                        kernel_initializer=self.weight_init,
+                                        bias_initializer=self.bias_init, 
+                                        name ='dec_L5_convt')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            x = tf.layers.batch_normalization(x, name='dec_L4_bn')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            x = self.activation(x)
+            x = tf.layers.conv2d_transpose(x, filters=1, kernel_size=4, strides=2, 
+                                        padding='same',
+                                        activation= None,
+                                        kernel_initializer=self.weight_init,
+                                        bias_initializer=self.bias_init, 
+                                        name ='dec_L6_convt')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            self.dec = self.dec = tf.reshape(x, shape=[-1, 28, 28])
+
+
+    def discriminator(self):
+        """
+        Discriminator network
+        """
+        with tf.name_scope('discriminator'):
+            x = tf.layers.dense(self.z, units=1000, 
                             activation= self.activation,
                             kernel_initializer=self.weight_init,
                             bias_initializer=self.bias_init, 
-                            name ='L5_fc3')
+                            name ='dis_L1_fc')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            x = tf.layers.dense(self.z, units=1000, 
+                            activation= None,
+                            kernel_initializer=self.weight_init,
+                            bias_initializer=self.bias_init, 
+                            name ='dis_L2_fc')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            x = tf.layers.batch_normalization(x, name='dec_L3_bn')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            x = self.activation(x)
+            x = tf.layers.dense(self.z, units=1, 
+                            activation= None,
+                            kernel_initializer=self.weight_init,
+                            bias_initializer=self.bias_init, 
+                            name ='dis_L4_fc')
+            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            self.dis = x
             
-            #x = tf.layers.dense(x, units=self.inputs_decoder * 2 + 1, activation=self.lrelu)
-            x = tf.reshape(x, self.reshaped_dim)
-            x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=2, 
-                                        padding='same',
-                                        activation= self.activation,
-                                        kernel_initializer=self.weight_init,
-                                        bias_initializer=self.bias_init, 
-                                        name ='L6_convt1')
-            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
-            x = tf.nn.dropout(x, self.keep_prob)
-            x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=1, 
-                                        padding='same',
-                                        activation= self.activation,
-                                        kernel_initializer=self.weight_init,
-                                        bias_initializer=self.bias_init,
-                                        name ='L7_convt2')
-            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
-            x = tf.nn.dropout(x, self.keep_prob)
-            x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=4, strides=1, 
-                                        padding='same',
-                                        activation= self.activation,
-                                        kernel_initializer=self.weight_init,
-                                        bias_initializer=self.bias_init,
-                                        name ='L8_convt3')
-            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
-            x = tf.contrib.layers.flatten(x)
-            x = tf.layers.dense(x, units=28 * 28, activation=tf.nn.sigmoid, name ='L9_fc4')
-            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
-            self.dec = tf.reshape(x, shape=[-1, 28, 28])
-
-
     def _build_model(self):
         """
         Building the model and loss function

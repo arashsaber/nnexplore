@@ -1,8 +1,56 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
 test.py
+
+# datasets
+#   -----------------------------------------
 mnist/*
 !mnist/.gitkeep
+
+
+# Variational Autoencoder
+#   -----------------------------------------
 VAE/model_v2.py
 VAE/tflearn_logs/*
 !VAE/tflearn_logs/.gitkeep
 VAE/saved_models/*
 !VAE/saved_models/.gitkeep
+
+
+# Advarsarial Autoencoder
+#   -----------------------------------------
+VAE/tf_logs/*
+!VAE/tf_logs/.gitkeep
+GAN/saved_models/*
+!GAN/saved_models/.gitkeep
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Environments
+#   -----------------------------------------
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/

@@ -17,22 +17,23 @@ from tflearn.helpers.evaluator import Evaluator
 class VAE(object):
 
     def __init__(self,
+        input_shape=[28, 28],
         reduced_dim=10, keep_prob=0.8,
         activation=tflearn.activations.leaky_relu,
         lr=1e-3, optimizer='adam', tb_verbose=3,
-        small_size_img = 7*7,
         weight_init=tflearn.initializations.xavier(uniform=False),
         bias_init=tflearn.initializations.xavier(uniform=False),
         batch_size=128, tensorboar_dir='./VAE/tflearn_logs/'):
         tf.reset_default_graph()
         self.graph = tf.get_default_graph()
+        self.input_shape = input_shape
         self.reduced_dim = reduced_dim
         self.keep_prob= keep_prob
         self.activation=activation
         self.lr = lr
         self.optimizer = optimizer
         self.tb_verbose = tb_verbose
-        self.small_size_img = small_size_img
+        self.small_size_img = int(input_shape[0]*input_shape[1]/16)
         self.batch_size = batch_size
         self.tensorboar_dir = tensorboar_dir
         self.weight_init = weight_init
@@ -45,9 +46,9 @@ class VAE(object):
         """
         setup the placeholders and dimensions
         """
-        self.X = tf.placeholder(dtype=tf.float32, shape=[None, 28, 28], name='X')
-        self.Y = tf.placeholder(dtype=tf.float32, shape=[None, 28, 28], name='Y')
-        self.Y_flat = tf.reshape(self.Y, shape=[-1, 28 * 28])
+        self.X = tf.placeholder(dtype=tf.float32, shape=[None, self.input_shape[0], self.input_shape[1]], name='X')
+        self.Y = tf.placeholder(dtype=tf.float32, shape=[None, self.input_shape[0], self.input_shape[1]], name='Y')
+        self.Y_flat = tf.reshape(self.Y, shape=[-1, self.input_shape[0] * self.input_shape[1]])
         #self.keep_prob = tf.placeholder(dtype=tf.float32, shape=(), name='keep_prob')
         dummy_dim = int(np.sqrt(self.small_size_img))
         self.reshaped_dim = [-1, dummy_dim, dummy_dim, 1] #[-1, 7, 7, 1]
@@ -58,7 +59,7 @@ class VAE(object):
         Encoder network
         """
         with tf.variable_scope("encoder", reuse=None):
-            x = tf.reshape(self.X, shape=[-1, 28, 28, 1])
+            x = tf.reshape(self.X, shape=[-1, self.input_shape[0], self.input_shape[1], 1])
             x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, 
                             padding='same', 
                             activation=self.activation, 
@@ -152,7 +153,7 @@ class VAE(object):
         """
         z_mean, z_std = self.encoder()
         self.decoder()
-        dec_flat = tf.reshape(self.dec, [-1, 28 * 28])
+        dec_flat = tf.reshape(self.dec, [-1, self.input_shape[0] * self.input_shape[1]])
 
         # Reconstruction loss
         encode_decode_loss = self.Y_flat * tf.log(1e-10 + dec_flat) \

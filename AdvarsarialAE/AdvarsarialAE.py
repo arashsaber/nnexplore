@@ -198,27 +198,42 @@ class AAE(object):
         self.rec_loss = tf.reduce_mean(tf.square(self.Y_flat - y_flat))
 
         self.gen_loss = -tf.reduce_mean(tf.log(d_fake + 1e-10))
-        self.dis_loss = -tf.reduce_mean(tf.log(d_real + 1e-10) + tf.log(1. - d_fake + 1e-10))
+        self.dis_loss = -tf.reduce_mean(tf.log(d_real + 1e-10) \
+                        + tf.log(1. - d_fake + 1e-10))
 
-
-
-        # Reconstruction loss
-        encode_decode_loss = self.Y_flat * tf.log(1e-10 + dec_flat) \
-                            + (1 - self.Y_flat) * tf.log(1e-10 + 1 - dec_flat)
-        encode_decode_loss = -tf.reduce_sum(encode_decode_loss, 1)
-        # KL Divergence loss
-        kl_div_loss = 1 + z_std - tf.square(z_mean) - tf.exp(z_std)
-        kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
-        self.loss = tf.reduce_mean(encode_decode_loss + kl_div_loss)
-        optimizer = tflearn.optimizers.Adam(learning_rate=self.lr, name='Adam')
+        # step of the optimization
+        # playing with this variable allows number of training iterations 
+        # for discriminator and generator
         step = tflearn.variable("step", initializer='zeros', shape=[])
-        optimizer.build(step_tensor=step)
-        optim_tensor = optimizer.get_tensor()
 
-        trainop = tflearn.TrainOp(loss=self.loss, optimizer=optim_tensor,
+        # building the optimizers
+        rec_opt = tflearn.optimizers.Adam(learning_rate=self.lr, name='Adam').build(step_tensor=step).get_tensor()
+        gen_opt = tflearn.optimizers.Adam(learning_rate=self.lr, name='Adam').build(step_tensor=step).get_tensor()
+        dis_opt = tflearn.optimizers.Adam(learning_rate=self.lr, name='Adam').build(step_tensor=step).get_tensor()
+        
+        # collecting trainable variables
+        all_variables = tf.trainable_variables()
+        enc_vars = [var for var in all_variables if 'enc_' in var.name]
+        dec_vars = [var for var in all_variables if 'dec_' in var.name]
+        dis_vars = [var for var in all_variables if 'dis_' in var.name]
+        rec_vars = enc_vars + dec_vars
+
+        # Defining trainOps
+        rec_trainop = tflearn.TrainOp(loss=self.rec_loss, optimizer=rec_opt,
                                 metric=None, batch_size=self.batch_size,
+                                trainable_vars=rec_vars,
                                 step_tensor=step)
-        self.trainer = tflearn.Trainer(train_ops=trainop, graph=self.graph,
+        gen_trainop = tflearn.TrainOp(loss=self.gen_loss, optimizer=gen_opt,
+                                metric=None, batch_size=self.batch_size,
+                                trainable_vars=rec_vars,
+                                step_tensor=step)
+        dis_trainop = tflearn.TrainOp(loss=self.dis_loss, optimizer=dis_opt,
+                                metric=None, batch_size=self.batch_size,
+                                trainable_vars=rec_vars,
+                                step_tensor=step)
+        
+        self.trainer = tflearn.Trainer(train_ops=[rec_trainop, dis_trainop, gen_trainop], 
+                                    graph=self.graph,
                                     tensorboard_dir=self.tensorboar_dir, 
                                     tensorboard_verbose=self.tb_verbose)
 
@@ -387,15 +402,16 @@ if __name__ == '__main__':
     # ----------------------------------------
     
     # build the model
-    vae = VAE()
+    aae = AAE()
 
     # train and save the model
-    #vae.train(trainX, testX, n_epoch=50)
-    #vae.save('./VAE/saved_models/model.tfl')
+    aae.train(trainX, testX, n_epoch=5)
+    aae.save('./VAE/saved_models/model.tfl')
 
     # load the model
-    vae.load('./VAE/saved_models/model.tfl')
+    #aae.load('./VAE/saved_models/model.tfl')
 
+    '''
     # test the generator
     plt.imshow(vae.generator_viewer(128), cmap='gray')
 
@@ -431,3 +447,5 @@ if __name__ == '__main__':
     vae2d.spectum_2d(25)
 
     plt.show()
+
+    '''

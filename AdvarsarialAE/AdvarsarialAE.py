@@ -24,7 +24,7 @@ class AAE(object):
         lr=1e-3, optimizer='adam', tb_verbose=3,
         weight_init=tflearn.initializations.xavier(uniform=False),
         bias_init=tflearn.initializations.xavier(uniform=False),
-        tensorboar_dir='./AAE/tflearn_logs/'):
+        tensorboar_dir='./AdvarsarialAE/tflearn_logs/'):
         tf.reset_default_graph()
         self.graph = tf.get_default_graph()
         self.input_shape = input_shape

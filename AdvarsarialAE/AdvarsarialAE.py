@@ -24,7 +24,7 @@ class AAE(object):
         lr=1e-3, optimizer='adam', tb_verbose=3,
         weight_init=tflearn.initializations.xavier(uniform=False),
         bias_init=tflearn.initializations.xavier(uniform=False),
-        tensorboar_dir='./VAE/tflearn_logs/'):
+        tensorboar_dir='./AAE/tflearn_logs/'):
         tf.reset_default_graph()
         self.graph = tf.get_default_graph()
         self.input_shape = input_shape
@@ -55,9 +55,8 @@ class AAE(object):
         self.Y = tf.placeholder(dtype=tf.float32, shape=[None, self.input_shape[0], 
                                 self.input_shape[1]], name='Y')
         self.Y_flat = tf.reshape(self.Y, shape=[-1, self.input_shape[0] * self.input_shape[1]])
-        self.Z_prior = tf.placeholder(dtype=tf.float32, 
-                                                shape=[self.batch_size,  self.reduced_dim], 
-                                                name='Z_prior')
+        self.Z_prior = tf.placeholder(dtype=tf.float32, shape=[None,  self.reduced_dim], 
+                                name='Z_prior')
 
 
     def encoder(self, x, reuse=None):
@@ -73,7 +72,6 @@ class AAE(object):
                             bias_initializer=self.bias_init, 
                             name ='enc_L1_conv')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
-            x = tf.nn.dropout(x, self.keep_prob)
             x = tf.layers.conv2d(x, filters=128, kernel_size=4, strides=2, 
                             padding='same', 
                             activation=None, 
@@ -137,7 +135,7 @@ class AAE(object):
                                         bias_initializer=self.bias_init, 
                                         name ='dec_L5_convt')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
-            x = tf.layers.batch_normalization(x, name='dec_L4_bn')
+            x = tf.layers.batch_normalization(x, name='dec_L6_bn')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = self.activation(x)
             x = tf.layers.conv2d_transpose(x, filters=1, kernel_size=4, strides=2, 
@@ -145,10 +143,10 @@ class AAE(object):
                                         activation= None,
                                         kernel_initializer=self.weight_init,
                                         bias_initializer=self.bias_init, 
-                                        name ='dec_L6_convt')
+                                        name ='dec_L7_convt')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             
-            return tf.reshape(x, shape=[-1, 28, 28])
+            return x#tf.reshape(x, shape=[-1, self.input_shape[0], self.input_shape[1]])
 
 
     def discriminator(self, z, reuse=False):
@@ -170,7 +168,7 @@ class AAE(object):
                             bias_initializer=self.bias_init, 
                             name ='dis_L2_fc')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
-            x = tf.layers.batch_normalization(x, name='dec_L3_bn')
+            x = tf.layers.batch_normalization(x, name='dis_L3_bn')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = self.activation(x)
             x = tf.layers.dense(self.z, units=1, 
@@ -204,170 +202,59 @@ class AAE(object):
         # step of the optimization
         # playing with this variable allows number of training iterations 
         # for discriminator and generator
-        step = tflearn.variable("step", initializer='zeros', shape=[])
-
+        step = tflearn.variable('step', initializer='zeros', shape=[])
+        
         # building the optimizers
-        rec_opt = tflearn.optimizers.Adam(learning_rate=self.lr, name='Adam').build(step_tensor=step).get_tensor()
-        gen_opt = tflearn.optimizers.Adam(learning_rate=self.lr, name='Adam').build(step_tensor=step).get_tensor()
-        dis_opt = tflearn.optimizers.Adam(learning_rate=self.lr, name='Adam').build(step_tensor=step).get_tensor()
+        #optimizer = tflearn.optimizers.Adam(learning_rate=self.lr)
+        #optimizer.build(step_tensor=step)
+        #optim_tensor = optimizer.get_tensor()
+
+        rec_opt = tflearn.Adam(learning_rate=self.lr).get_tensor()
+        gen_opt = tflearn.Adam(learning_rate=self.lr).get_tensor()
+        dis_opt = tflearn.Adam(learning_rate=self.lr).get_tensor()
         
         # collecting trainable variables
         all_variables = tf.trainable_variables()
-        enc_vars = [var for var in all_variables if 'enc_' in var.name]
-        dec_vars = [var for var in all_variables if 'dec_' in var.name]
-        dis_vars = [var for var in all_variables if 'dis_' in var.name]
+        enc_vars = [var for var in all_variables if 'enc' in var.name]
+        dec_vars = [var for var in all_variables if 'dec' in var.name]
+        dis_vars = [var for var in all_variables if 'dis' in var.name]
         rec_vars = enc_vars + dec_vars
 
         # Defining trainOps
         rec_trainop = tflearn.TrainOp(loss=self.rec_loss, optimizer=rec_opt,
                                 metric=None, batch_size=self.batch_size,
                                 trainable_vars=rec_vars,
-                                step_tensor=step)
+                                step_tensor=step,
+                                name='rec_train')
         gen_trainop = tflearn.TrainOp(loss=self.gen_loss, optimizer=gen_opt,
                                 metric=None, batch_size=self.batch_size,
-                                trainable_vars=rec_vars,
-                                step_tensor=step)
+                                trainable_vars=enc_vars,
+                                step_tensor=step,
+                                name='gen_train')
         dis_trainop = tflearn.TrainOp(loss=self.dis_loss, optimizer=dis_opt,
                                 metric=None, batch_size=self.batch_size,
-                                trainable_vars=rec_vars,
-                                step_tensor=step)
+                                trainable_vars=dis_vars,
+                                step_tensor=step,
+                                name='dis_train')
         
         self.trainer = tflearn.Trainer(train_ops=[rec_trainop, dis_trainop, gen_trainop], 
-                                    graph=self.graph,
-                                    tensorboard_dir=self.tensorboar_dir, 
-                                    tensorboard_verbose=self.tb_verbose)
+                                graph=self.graph,
+                                tensorboard_dir=self.tensorboar_dir, 
+                                tensorboard_verbose=self.tb_verbose)
+                                
 
-
-    def reconstruct(self,x):
-        """
-        Produce the reconstruction for input images x
-        Arguments:
-            x: 3d array [num_images,h,w], input images
-        """
-        return self.trainer.session.run(self.dec, feed_dict={self.X: x.reshape((-1,28,28))})
-
-
-    def reconstructor_viewer(self, x):
-        """
-        produce an image to view reconstructed data together with the original data
-        Arguments:
-            x: 3d array [num_images,h,w], input images
-        """  
-        reconstructed = self.reconstruct(x)
-        
-        num_images = x.shape[0]
-        h, w = x.shape[1], x.shape[2]
-
-        n = np.sqrt(num_images).astype(np.int32)
-        img = np.ones((h*n, 2*w*n+2*n))
-        for j in range(n):
-            for i in range(n):
-                img[i*h:(i+1)*h, j*2*w+2*j:(j+1)*2*w+2*j] = \
-                            np.hstack((
-                                x[n*j+i, :, :].reshape(h,w),
-                                reconstructed[n*j+i, :, :].reshape(h,w), 
-                            ))             
-
-        return img
-
-
-    def reduce_dimension(self, x):
-        """
-        Produce the z vectors for the given inputs
-        Arguments:
-            x: 3d array [num_images,h,w], input images
-        """
-        return self.trainer.session.run(self.z, feed_dict={self.X: x.reshape((-1,28,28))})
-
-    
-    def visualization_2d(self, x, y):
-        """
-        2d visualization for the case reduced_dim =2
-        Arguments:
-            x: 3d array [num_images,h,w], input images
-            y: 2d array [num_images, label], labels of the classes
-        """
-        z = self.trainer.session.run(self.z, feed_dict={self.X: x.reshape((-1,28,28))})
-        assert z.shape[1] == 2, 'reduced_dim, i.e., dimension of z, must be 2 for this display to work'
-        plt.figure(figsize=(10, 8)) 
-        plt.scatter(z[:, 0], z[:, 1], c=np.argmax(y, axis=1))
-        plt.colorbar()
-        plt.grid()
-
-
-    def generate(self, num_images=None, z=None):
-        """
-        generate data from noise input
-        Arguments:
-            num_images: int, number of images to be generated.
-            z: numpy 2d array, noise input
-        Note: it will use either the num_images or the given z
-        """
-        if z is None:
-            z = np.random.randn(num_images, self.reduced_dim)
-        else:
-            assert z.shape[1] == self.reduced_dim, 'z.shape[1] should be equal to {}.'.format(self.reduced_dim)
-
-        return self.trainer.session.run(self.dec, feed_dict={self.z: z})
-
-
-    def generator_viewer(self, num_images):
-        """
-        produce an image to view generated data
-        Arguments:
-            num_images: int, number of images to be generated.
-        """  
-        generated = self.generate(num_images)
-
-        n = np.sqrt(num_images/2).astype(np.int32)
-        h = 28
-        w = 28
-        img = np.zeros((h*(n+1), 2*w*n))
-        for i in range(n+1):
-            for j in range(2*n):
-                if 2*n*i+j < num_images:
-                    img[i*h:(i+1)*h, j*w:(j+1)*w] = \
-                            generated[2*n*i+j, :, :].reshape(w,h)
-
-        return img
-
-
-    def spectum_2d(self, num_imgs_row):
-        """
-        spectrum of the changes of generator
-        Arguments:
-            num_imgs_row: int, number of images in each row
-        """
-        h = w = 28
-        
-        x = np.linspace(-2.5, 2.5, num_imgs_row)
-        img = np.empty((h*num_imgs_row, w*num_imgs_row))
-        for i, xi in enumerate(x):
-            z = np.vstack(([xi]*num_imgs_row, x)).transpose()
-            generated = self.generate(z=z)
-            dummy = np.empty((h, 0), dtype=float)
-            for j in range(generated.shape[0]):
-                dummy = np.hstack((
-                    dummy, generated[j,:,:].reshape(w,h)
-                    ))
-
-            img[i*h:(i+1)*h, :] = dummy 
-
-        plt.figure(figsize=(8, 8))        
-        plt.imshow(img, cmap="gray")
-
-
-    def train(self, trainX, testX, n_epoch=50): 
+    def train(self, trainX, testX, Z, n_epoch=50): 
         """
         train the neural net
         Arguments:
             trainX: numpy or python array, training data
             testX: numpy or python array, testing data
             n_epoch: int, number of epochs
-        """ 
-        self.trainer.fit({self.X: trainX, self.Y: trainX}, 
-                    val_feed_dicts={self.X: testX, self.Y: testX},
-                    n_epoch=n_epoch, show_metric=True)
+        """
+        self.trainer.fit(
+            [{self.X: trainX, self.Y: trainX}, {self.X: trainX, self.Z_prior: Z}, {self.X: trainX, self.Z_prior: Z}], 
+            #val_feed_dicts=[{self.X: testX, self.Y: testX}, {}, {}],
+            n_epoch=n_epoch, show_metric=True)
     
     
     def save(self, model_file):
@@ -400,52 +287,15 @@ if __name__ == '__main__':
     trainX = trainX.reshape([-1, 28, 28])
     testX = testX.reshape([-1, 28, 28])
     # ----------------------------------------
-    
     # build the model
     aae = AAE()
 
+    Z = tf.convert_to_tensor(
+                            np.random.uniform(-1, 1, [trainX.shape[0], aae.reduced_dim]).astype(np.float32))
+            
     # train and save the model
-    aae.train(trainX, testX, n_epoch=5)
-    aae.save('./VAE/saved_models/model.tfl')
+    aae.train(trainX, testX, Z, n_epoch=5)
+    aae.save('./AdvarsarialAE/saved_models/model.tfl')
 
     # load the model
     #aae.load('./VAE/saved_models/model.tfl')
-
-    '''
-    # test the generator
-    plt.imshow(vae.generator_viewer(128), cmap='gray')
-
-    # test the dimensionality reduction
-    z = vae.reduce_dimension(trainX[10:15,:,:])
-
-    # test the reconstruction
-    plt.figure()
-    plt.imshow(np.hstack((trainX[10,:,:].reshape(28,28), 
-                        vae.reconstruct(trainX[10,:,:]).reshape(28,28)
-                        )), cmap='gray')
-    plt.figure()
-    plt.imshow(vae.reconstructor_viewer(trainX[:128,:,:]), cmap='gray')
-    
-    plt.show()
-    
-    # ----------------------------------------
-    # Visualization through VAEs
-    
-    # build the model
-    vae2d = VAE(reduced_dim=2)
-
-    #vae2d.train(trainX, testX, n_epoch=50)
-    #vae2d.save('./VAE/saved_models/model2d.tfl')
-    
-    # load the model
-    vae2d.load('./VAE/saved_models/model2d.tfl')
-    
-    # the scatter plot of 2d latent features
-    vae2d.visualization_2d(testX[:1000,:,:], testY[:1000,:])
-
-    # the spectrum of the generated images
-    vae2d.spectum_2d(25)
-
-    plt.show()
-
-    '''

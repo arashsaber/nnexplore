@@ -142,9 +142,9 @@ class VAE(object):
                                         name ='L8_convt3')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = tf.contrib.layers.flatten(x)
-            x = tf.layers.dense(x, units=28 * 28, activation=tf.nn.sigmoid, name ='L9_fc4')
+            x = tf.layers.dense(x, units=self.input_shape[0]*self.input_shape[1], activation=tf.nn.sigmoid, name ='L9_fc4')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
-            self.dec = tf.reshape(x, shape=[-1, 28, 28])
+            self.dec = tf.reshape(x, shape=[-1, self.input_shape[0], self.input_shape[1]])
 
 
     def _build_model(self):
@@ -163,6 +163,7 @@ class VAE(object):
         kl_div_loss = 1 + z_std - tf.square(z_mean) - tf.exp(z_std)
         kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
         self.loss = tf.reduce_mean(encode_decode_loss + kl_div_loss)
+        
         optimizer = tflearn.optimizers.Adam(learning_rate=self.lr, name='Adam')
         step = tflearn.variable("step", initializer='zeros', shape=[])
         optimizer.build(step_tensor=step)
@@ -182,7 +183,7 @@ class VAE(object):
         Arguments:
             x: 3d array [num_images,h,w], input images
         """
-        return self.trainer.session.run(self.dec, feed_dict={self.X: x.reshape((-1,28,28))})
+        return self.trainer.session.run(self.dec, feed_dict={self.X: x.reshape((-1,self.input_shape[0], self.input_shape[1]))})
 
 
     def reconstructor_viewer(self, x):
@@ -215,7 +216,7 @@ class VAE(object):
         Arguments:
             x: 3d array [num_images,h,w], input images
         """
-        return self.trainer.session.run(self.z, feed_dict={self.X: x.reshape((-1,28,28))})
+        return self.trainer.session.run(self.z, feed_dict={self.X: x.reshape((-1,self.input_shape[0], self.input_shape[1]))})
 
     
     def visualization_2d(self, x, y):
@@ -225,7 +226,7 @@ class VAE(object):
             x: 3d array [num_images,h,w], input images
             y: 2d array [num_images, label], labels of the classes
         """
-        z = self.trainer.session.run(self.z, feed_dict={self.X: x.reshape((-1,28,28))})
+        z = self.trainer.session.run(self.z, feed_dict={self.X: x.reshape((-1, self.input_shape[0], self.input_shape[1]))})
         assert z.shape[1] == 2, 'reduced_dim, i.e., dimension of z, must be 2 for this display to work'
         plt.figure(figsize=(10, 8)) 
         plt.scatter(z[:, 0], z[:, 1], c=np.argmax(y, axis=1))
@@ -258,8 +259,8 @@ class VAE(object):
         generated = self.generate(num_images)
 
         n = np.sqrt(num_images/2).astype(np.int32)
-        h = 28
-        w = 28
+        h = self.input_shape[0]
+        w = self.input_shape[1]
         img = np.zeros((h*(n+1), 2*w*n))
         for i in range(n+1):
             for j in range(2*n):
@@ -276,7 +277,8 @@ class VAE(object):
         Arguments:
             num_imgs_row: int, number of images in each row
         """
-        h = w = 28
+        h, w = self.input_shape[0], self.input_shape[1]
+
         
         x = np.linspace(-2.5, 2.5, num_imgs_row)
         img = np.empty((h*num_imgs_row, w*num_imgs_row))
@@ -343,7 +345,7 @@ if __name__ == '__main__':
     vae = VAE()
 
     # train and save the model
-    #vae.train(trainX, testX, n_epoch=50)
+    vae.train(trainX, testX, n_epoch=5)
     #vae.save('./VAE/saved_models/model.tfl')
 
     # load the model

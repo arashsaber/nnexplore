@@ -1,6 +1,6 @@
 ## Variational Autoencoder
 
-A convolutional autoencoder object. 
+A convolutional variational autoencoder object. 
 To use it, simply call the object as below.
 
 **Getting the data:**

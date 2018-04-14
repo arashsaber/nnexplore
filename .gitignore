@@ -1,6 +1,7 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 .vscode/*
+.idea/*
 test.py
 
 # datasets
@@ -16,6 +17,7 @@ VAE/tflearn_logs/*
 !VAE/tflearn_logs/.gitkeep
 VAE/saved_models/*
 !VAE/saved_models/.gitkeep
+VAE/.idea/*
 
 
 # Advarsarial Autoencoder

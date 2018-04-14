@@ -22,10 +22,10 @@ VAE/.idea/*
 
 # Advarsarial Autoencoder
 #   -----------------------------------------
-AdvarsarialAE/tf_logs/*
-!AdvarsarialAE/tf_logs/.gitkeep
-AdvarsarialAE/saved_models/*
-!AdvarsarialAE/saved_models/.gitkeep
+AdversarialAE/tf_logs/*
+!AdversarialAE/tf_logs/.gitkeep
+AdversarialAE/saved_models/*
+!AdversarialAE/saved_models/.gitkeep
 
 
 

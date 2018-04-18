@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import tflearn
 from tflearn.helpers.evaluator import Evaluator
 import os
+import datetime
 #   ----------------------------------------------
 class AAE(object):
 
@@ -22,7 +23,7 @@ class AAE(object):
         reduced_dim=10, 
         batch_size=128, channel_size=128,
         activation=tflearn.activations.leaky_relu,
-        lr=1e-3, beta1=0.5, tb_verbose=3,
+        lr=1e-3, beta1=0.5,
         weight_init=tflearn.initializations.xavier(uniform=False),
         bias_init=tflearn.initializations.xavier(uniform=False),
         tensorboar_dir='./AdversarialAE/tf_logs'):
@@ -33,7 +34,6 @@ class AAE(object):
         self.activation=activation
         self.lr = lr
         self.beta1 = beta1
-        self.tb_verbose = tb_verbose
         self.small_size_img = int(input_shape[0]*input_shape[1]/16)
         self.batch_size = batch_size
         self.channel_size = channel_size
@@ -64,7 +64,7 @@ class AAE(object):
         """
         Encoder network
         """
-        with tf.variable_scope("encoder", reuse=None):
+        with tf.variable_scope('encoder', reuse=None):
             x = tf.reshape(x, shape=[-1, self.input_shape[0], self.input_shape[1], 1])
             x = tf.layers.conv2d(x, filters=64, kernel_size=4, strides=2, 
                             padding='same', 
@@ -110,7 +110,7 @@ class AAE(object):
         dim = int(self.input_shape[0]*self.input_shape[1]*self.channel_size/16)
         if reuse:
             tf.get_variable_scope().reuse_variables()
-        with tf.variable_scope("decoder", reuse=reuse):
+        with tf.variable_scope('decoder', reuse=reuse):
             x = tf.layers.dense(z, units=1024, 
                             activation= None,
                             kernel_initializer=self.weight_init,
@@ -155,6 +155,8 @@ class AAE(object):
     def discriminator(self, z, reuse=False):
         """
         Discriminator network
+        Note: if uncomment the monitor of activations, then two discriminator in the 
+        tensorboard will be created one for each real or fake distribution.
         """
         if reuse:
             tf.get_variable_scope().reuse_variables()
@@ -199,10 +201,10 @@ class AAE(object):
         self.rec_loss = tf.reduce_mean(tf.square(self.Y_flat - y_flat))
 
         self.gen_loss = -tf.reduce_mean(tf.log(d_fake + 1e-10))
-        #self.dis_loss = -tf.reduce_mean(tf.log(d_real + 1e-10) \
-        #                + tf.log(1. - d_fake + 1e-10))
-        self.dis_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like(d_real), logits=d_real)) \
-            + tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.zeros_like(d_fake), logits=d_fake))
+        self.dis_loss = -tf.reduce_mean(tf.log(d_real + 1e-10) \
+                        + tf.log(1. - d_fake + 1e-10))
+        #self.dis_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.ones_like(d_real), logits=d_real)) \
+        #    + tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.zeros_like(d_fake), logits=d_fake))
 
         # collecting trainable variables
         all_variables = tf.trainable_variables()
@@ -238,20 +240,27 @@ class AAE(object):
 
 
     def _trainer(self, dataset, n_epoch=100, z_std=5, checkpoint_interval=20):
-        
-        
+        """
+        train the adversarial autoencoder
+        Arguments:
+            dataset: tensorflow dataset object
+            n_epoch: int, number of epochs
+            z_std: float, standard deviation of z_prior
+            checkpoint_interval: int, interval in number of batches to store the network parameters
+        """
         step = 0
-
+        self.n_epoch = n_epoch
         self.sess.run(tf.global_variables_initializer())
         path = os.path.join(self.tensorboar_dir, self.run_id)
         if not os.path.exists(path):
             os.mkdir(path)
         writer = tf.summary.FileWriter(logdir=path, graph=self.graph)
-
+        self._log_setup(path)
+        
         with self.sess.as_default() as sess:
-            for epoch_num in range(n_epoch):
+            for epoch_num in range(self.n_epoch):
                 n_batches = int(dataset.train.num_examples / self.batch_size)
-                print("------------------Epoch {}/{}------------------".format(epoch_num, n_epoch))
+                print("------------------Epoch {}/{}------------------".format(epoch_num, self.n_epoch))
                 for batch_num in range(1, n_batches + 1):
                     
                     # getting the batch data
@@ -272,26 +281,29 @@ class AAE(object):
                                 [self.rec_loss, self.dis_loss, self.gen_loss, self.summary_op],
                                 feed_dict={self.X: batch_x, self.Y: batch_x, self.Z_prior: z_prior})
                         writer.add_summary(summary, global_step=step)
-                        print("Epoch: {}, iteration: {}".format(epoch_num, batch_num))
-                        print("Autoencoder Loss: {}".format(a_loss))
-                        print("Discriminator Loss: {}".format(d_loss))
-                        print("Generator Loss: {}".format(g_loss))
+                        print('Epoch: {}, iteration: {}'.format(epoch_num, batch_num))
+                        print('Autoencoder Loss: {}'.format(a_loss))
+                        print('Discriminator Loss: {}'.format(d_loss))
+                        print('Generator Loss: {}'.format(g_loss))
                         with open(path+'/log.txt', 'a') as log:
-                                log.write("Epoch: {}, batch number: {}\n".format(epoch_num, batch_num))
-                                log.write("Autoencoder Loss: {}\n".format(a_loss))
-                                log.write("Discriminator Loss: {}\n".format(d_loss))
-                                log.write("Generator Loss: {}\n".format(g_loss))
-                    
+                            log.write('Epoch: {}, batch number: {}\n'.format(epoch_num, batch_num))
+                            log.write('Autoencoder Loss: {}\n'.format(a_loss))
+                            log.write('Discriminator Loss: {}\n'.format(d_loss))
+                            log.write('Generator Loss: {}\n'.format(g_loss))
+                        
                     step += 1
 
 
-    def train(self, dataset, n_epoch=100, z_std=5, checkpoint_interval=20, run_id='attempt1'): 
+    def train(self, dataset, n_epoch=100, z_std=5, checkpoint_interval=20, run_id=None): 
         """
         train the neural net
         Arguments:
             dataset: tensorflow binary object, dataset
             n_epoch: int, number of epochs
         """
+        if run_id is None:
+            run_id = 'Adversarial_AE_{}'.format(datetime.datetime.now())
+        
         self.run_id = run_id
         self._trainer(dataset, n_epoch=n_epoch, z_std=z_std, checkpoint_interval=checkpoint_interval)
     
@@ -300,10 +312,13 @@ class AAE(object):
                         rec_grads, dis_grads, gen_grads
                         ):
         """
-        Build the sumary of trainable variables and gradiesnts as suggested by the name of the arguments
+        Build the sumary of trainable variables, activations, and gradiesnts as suggested by 
+        the name of the arguments
         """
+        # Summarize all activations
+        for actv in tf.get_collection(tf.GraphKeys.ACTIVATIONS):
+            tf.summary.histogram(actv.name, actv)
         
-
         # Summarize the weights and biases
         for var in enc_vars:
             tf.summary.histogram(var.name, var)
@@ -323,7 +338,6 @@ class AAE(object):
         
         for grad, var in gen_grads:
             tf.summary.histogram(var.name + '/gen_gradient', grad)
-        
 
         # summarize the losses
         tf.summary.scalar(name='Reconstruction Loss', tensor=self.rec_loss)
@@ -333,8 +347,7 @@ class AAE(object):
         tf.summary.histogram(name='Real Distribution', values=self.Z_prior)
         tf.summary.image(name='Input Images', 
                         tensor=tf.reshape(self.X, shape=[-1, self.input_shape[0], self.input_shape[1], 1]), 
-                        max_outputs=10)
-        
+                        max_outputs=10)      
         tf.summary.image(name='Generated Images', 
                         tensor=tf.reshape(self.y, shape=[-1, self.input_shape[0], self.input_shape[1], 1]),  
                         max_outputs=10)
@@ -360,6 +373,25 @@ class AAE(object):
         """
         self.saver.restore(self.sess, model_file)
 
+    def _log_setup(self, path):
+        """
+        Store the network parameters in the log file
+        Arguments:
+            path: str, path to the corresponding folder
+        """
+        with open(path+'/log.txt', 'a') as log:
+            log.write('Adversarial AutoEncoder\n')
+            log.write('-------------------------------------------\n')
+            log.write('trained on: {}\n'.format(datetime.datetime.now()))
+            log.write('Parameters:\n')
+            log.write('dimension of z: {}\n'.format(self.reduced_dim))
+            log.write('learning rate: {}\n'.format(self.lr))
+            log.write('batch size: {}\n'.format(self.batch_size))
+            log.write('number of epochs: {}\n'.format(self.n_epoch))
+            log.write('beta1: {}\n'.format(self.beta1))
+            log.write('channel size: {}\n'.format(self.channel_size))      
+            log.write('-------------------------------------------\n')
+            
 
 #   ----------------------------------------------
 if __name__ == '__main__':
@@ -372,7 +404,7 @@ if __name__ == '__main__':
     aae = AAE()
 
     # train and save the model
-    aae.train(dataset=mnist, n_epoch=5, run_id='first')
+    aae.train(dataset=mnist, n_epoch=20, run_id='first')
     aae.save('./AdversarialAE/saved_models/model.tfl')
 
     # load the model

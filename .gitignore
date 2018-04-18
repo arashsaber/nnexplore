@@ -1,8 +1,21 @@
 # Byte-compiled / optimized / DLL files
+#   -----------------------------------------
 __pycache__/
 .vscode/*
 .idea/*
 test.py
+
+
+# Environments
+#   -----------------------------------------
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
 
 # datasets
 #   -----------------------------------------
@@ -26,34 +39,3 @@ AdversarialAE/tf_logs/*
 !AdversarialAE/tf_logs/.gitkeep
 AdversarialAE/saved_models/*
 !AdversarialAE/saved_models/.gitkeep
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Environments
-#   -----------------------------------------
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/

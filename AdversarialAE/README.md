@@ -1,7 +1,8 @@
 ## Adversarial Autoencoder
 
-An adversarial autoencoder object. 
-To use it, simply call the object as below.
+An adversarial autoencoder object. For theoretical details please check the paper
+available [**here**](https://arxiv.org/pdf/1511.05644.pdf).
+To use the model, simply call the object as shown below.
 
 **Getting the data:**
 We start by downloading the MNIST dataset:

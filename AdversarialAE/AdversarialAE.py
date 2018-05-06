@@ -55,7 +55,7 @@ class AAE(object):
         self.Y = tf.placeholder(dtype=tf.float32, shape=[None, self.input_shape[0], 
                                 self.input_shape[1]], name='Y')
         self.Y_flat = tf.reshape(self.Y, shape=[-1, self.input_shape[0] * self.input_shape[1]])
-        self.Z = tf.placeholder(dtype=tf.float32, shape=[None, self.reduced_dim], name='Z')
+        #self.Z = tf.placeholder(dtype=tf.float32, shape=[None, self.reduced_dim], name='Z')
         self.Z_prior = tf.placeholder(dtype=tf.float32, shape=[self.batch_size,  self.reduced_dim], 
                                 name='Z_prior')
 
@@ -512,16 +512,17 @@ class AAE(object):
         Arguments:
             num_imgs_row: int, number of images in each row
         """
+        assert num_imgs_row <= self.batch_size, 'num_imgs_row should be less than batch size in this implementation'
         h, w = self.input_shape[0], self.input_shape[1]
-
         
         x = np.linspace(-2.5, 2.5, num_imgs_row)
         img = np.empty((h*num_imgs_row, w*num_imgs_row))
         for i, xi in enumerate(x):
-            z = np.vstack(([xi]*num_imgs_row, x)).transpose()
+            z = np.zeros((self.batch_size, 2), dtype=float)
+            z[:num_imgs_row, :] = np.vstack(([xi]*num_imgs_row, x)).transpose()
             generated = self.generate(z=z)
             dummy = np.empty((h, 0), dtype=float)
-            for j in range(generated.shape[0]):
+            for j in range(num_imgs_row):#generated.shape[0]):
                 dummy = np.hstack((
                     dummy, generated[j,:,:].reshape(w,h)
                     ))
@@ -578,11 +579,21 @@ if __name__ == '__main__':
     aae2d = AAE(reduced_dim=2) 
 
     # train and save the model
-    aae2d.train(dataset=mnist, n_epoch=20, report_flag=False)
-    aae2d.save('./AdversarialAE/saved_models/model2d.ckpt')
+    #aae2d.train(dataset=mnist, n_epoch=20, report_flag=False)
+    #aae2d.save('./AdversarialAE/saved_models/model2d.ckpt')
 
     # load the model
     aae2d.load('./AdversarialAE/saved_models/model2d.ckpt')
-    
 
-        
+    
+    # get the images
+    images, labels = mnist.test.next_batch(1000)
+    images = images.reshape((-1,28,28))
+                    
+    # the scatter plot of 2d latent features
+    aae2d.visualization_2d(images, labels)
+
+    # the spectrum of the generated images
+    aae2d.spectum_2d(25)
+
+    plt.show()

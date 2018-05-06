@@ -142,7 +142,7 @@ class AAE(object):
             x = self.activation(x)
             x = tf.layers.conv2d_transpose(x, filters=1, kernel_size=4, strides=2, 
                                         padding='same',
-                                        activation= None,
+                                        activation= tf.nn.sigmoid,
                                         kernel_initializer=self.weight_init,
                                         bias_initializer=self.bias_init, 
                                         name ='dec_L7_convt')
@@ -483,7 +483,7 @@ class AAE(object):
             else:
                 z = np.random.randn(num_images, self.reduced_dim) * z_std
         else:
-            assert z.shape[1] == self.reduced_dim, 'z.shape[1] should be equal to {}.'.format(self.reduced_dim)
+            assert z.shape[1] == self.reduced_dim, 'z.shape[1] should be equal to {}.'.format(self.reduced_dim)    
 
         return self.sess.run(self.decoder(self.Z_prior, reuse=True), feed_dict={self.Z_prior: z})
 
@@ -548,8 +548,8 @@ if __name__ == '__main__':
     aae = AAE()
 
     # train and save the model
-    #aae.train(dataset=mnist, n_epoch=20, report_flag=False)
-    #aae.save('./AdversarialAE/saved_models/model.ckpt')
+    aae.train(dataset=mnist, n_epoch=20, report_flag=False)
+    aae.save('./AdversarialAE/saved_models/model.ckpt')
 
     # load the model
     aae.load('./AdversarialAE/saved_models/model.ckpt')
@@ -579,8 +579,8 @@ if __name__ == '__main__':
     aae2d = AAE(reduced_dim=2) 
 
     # train and save the model
-    #aae2d.train(dataset=mnist, n_epoch=20, report_flag=False)
-    #aae2d.save('./AdversarialAE/saved_models/model2d.ckpt')
+    aae2d.train(dataset=mnist, n_epoch=20, report_flag=False)
+    aae2d.save('./AdversarialAE/saved_models/model2d.ckpt')
 
     # load the model
     aae2d.load('./AdversarialAE/saved_models/model2d.ckpt')

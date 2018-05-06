@@ -20,6 +20,9 @@ We start by downloading the MNIST dataset:
     # load the model
     aae.load('./AdversarialAE/saved_models/model.ckpt')
 
+While training, use tensorboard visualization to monitor different parameters.
+In tensorboard, undeer the **IMAGES** tab, find the progress of generation and reconstruction of images.
+
 
 **Testing the generator:**
   

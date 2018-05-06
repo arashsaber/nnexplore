@@ -1,5 +1,3 @@
-## Under construction
-
 ## Adversarial Autoencoder
 
 An adversarial autoencoder object. 
@@ -8,68 +6,78 @@ To use it, simply call the object as below.
 **Getting the data:**
 We start by downloading the MNIST dataset:
 
-    import tflearn.datasets.mnist as mnist
-    trainX, trainY, testX, testY = mnist.load_data(one_hot=True)
-    trainX = trainX.reshape([-1, 28, 28])
-    testX = testX.reshape([-1, 28, 28])
+    from tensorflow.examples.tutorials.mnist import input_data
+    mnist = input_data.read_data_sets('./mnist/', one_hot=True)
 
 
 **Build the model, train/save or load:**
 
-    vae = VAE()
-
     # train and save the model
-    vae.train(trainX, testX, n_epoch=10)
-    vae.save('./VAE/saved_models/model.tfl')
+    aae.train(dataset=mnist, n_epoch=20, report_flag=False)
+    aae.save('./AdversarialAE/saved_models/model.ckpt')
 
     # load the model
-    vae.load('./VAE/saved_models/model.tfl')
+    aae.load('./AdversarialAE/saved_models/model.ckpt')
 
 
 **Testing the generator:**
   
-    plt.imshow(vae.generator_viewer(128), cmap='gray')
+    plt.imshow(aae.generator_viewer(128), cmap='gray')
 
 <img src="./Figs/generated.png" width="600">
 
 **Testing the dimensionality reduction:**
   
-    z = vae.reduce_dimension(trainX[10:15,:,:])
+    # get the images
+    images, labels = mnist.test.next_batch(128)
+    images = images.reshape((-1,28,28))
+    image = images[0,:,:]
+                    
+    # test the dimensionality reduction
+    z = aae.reduce_dimension(images)
 
 **Testing the reconstruction:**
 
-    plt.imshow(np.hstack((trainX[10,:,:].reshape(28,28), 
-                        vae.reconstruct(trainX[10,:,:]).reshape(28,28)
+    plt.figure()
+    plt.imshow(np.hstack((image.reshape(28,28), 
+                        aae.reconstruct(image).reshape(28,28)
                         )), cmap='gray')
+    
 
 <img src="./Figs/reconstructed0.png" width="400">
 
-    plt.imshow(vae.reconstructor_viewer(trainX[:128,:,:]), cmap='gray')
+    plt.imshow(aae.reconstructor_viewer(images), cmap='gray')
+
 
 <img src="./Figs/reconstructed.png" width="600">   
     
 **Testing the 2D-visualizations:**
-Let us now test the 2D viisualization through VAEs:
+Let us now test the 2D viisualization through AAEs:
     
-    # build the model
-    vae2d = VAE(reduced_dim=2)
+    # build the 2 dimensional model
+    aae2d = AAE(reduced_dim=2) 
 
-    # training and saving
-    vae2d.train(trainX, testX, n_epoch=10)
-    vae2d.save('./VAE/saved_models/model2d.tfl')
-    
+    # train and save the model
+    aae2d.train(dataset=mnist, n_epoch=20, report_flag=False)
+    aae2d.save('./AdversarialAE/saved_models/model2d.ckpt')
+
     # load the model
-    vae2d.load('./VAE/saved_models/model2d.tfl')
+    aae2d.load('./AdversarialAE/saved_models/model2d.ckpt')
     
     
 **Displaying the scatter plot of 2d latent features:**
 
-    vae2d.visualization_2d(testX[:1000,:,:], testY[:1000,:])
+    # get the images
+    images, labels = mnist.train.next_batch(1000)
+    images = images.reshape((-1,28,28))
+                    
+    # the scatter plot of 2d latent features
+    aae2d.visualization_2d(images, labels)
 
 <img src="./Figs/scatterplot.png" width="600">
 
 **Displaying the spectrum of the generated images:**
 
-    vae2d.spectum_2d(25)
+    aae2d.spectum_2d(25)
 
 <img src="./Figs/spectrum.png" width="600">

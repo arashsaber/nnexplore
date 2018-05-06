@@ -542,7 +542,6 @@ if __name__ == '__main__':
     mnist = input_data.read_data_sets('./mnist/', one_hot=True)
 
     # ----------------------------------------
-    '''
     # build the model
     aae = AAE()
 
@@ -573,7 +572,6 @@ if __name__ == '__main__':
     plt.imshow(aae.reconstructor_viewer(images), cmap='gray')
     
     plt.show()
-    '''
     # ----------------------------------------
     # build the 2 dimensional model
     aae2d = AAE(reduced_dim=2) 

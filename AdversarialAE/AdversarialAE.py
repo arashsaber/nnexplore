@@ -515,7 +515,7 @@ class AAE(object):
         assert num_imgs_row <= self.batch_size, 'num_imgs_row should be less than batch size in this implementation'
         h, w = self.input_shape[0], self.input_shape[1]
         
-        x = np.linspace(-2.5, 2.5, num_imgs_row)
+        x = np.linspace(-5, 5, num_imgs_row)
         img = np.empty((h*num_imgs_row, w*num_imgs_row))
         for i, xi in enumerate(x):
             z = np.zeros((self.batch_size, 2), dtype=float)
@@ -585,13 +585,13 @@ if __name__ == '__main__':
 
     
     # get the images
-    images, labels = mnist.test.next_batch(1000)
+    images, labels = mnist.train.next_batch(1000)
     images = images.reshape((-1,28,28))
                     
     # the scatter plot of 2d latent features
     aae2d.visualization_2d(images, labels)
 
     # the spectrum of the generated images
-    aae2d.spectum_2d(25)
+    aae2d.spectum_2d(40)
 
     plt.show()

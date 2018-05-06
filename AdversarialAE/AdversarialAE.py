@@ -22,7 +22,7 @@ class AAE(object):
         input_shape=[28, 28],
         reduced_dim=10, 
         batch_size=128, channel_size=128,
-        activation=tf.nn.relu, #learn.activations.leaky_relu,
+        activation=tf.nn.relu,
         lr=1e-3, beta1=0.5,
         weight_init=tflearn.initializations.xavier(uniform=False),
         bias_init=tflearn.initializations.xavier(uniform=False),
@@ -184,6 +184,7 @@ class AAE(object):
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             return x
             
+
     def _build_model(self):
         """
         Building the model and loss function
@@ -390,6 +391,7 @@ class AAE(object):
         """
         self.saver.restore(self.sess, model_file)
 
+
     def _log_setup(self, path):
         """
         Store the network parameters in the log file
@@ -408,6 +410,7 @@ class AAE(object):
             log.write('beta1: {}\n'.format(self.beta1))
             log.write('channel size: {}\n'.format(self.channel_size))      
             log.write('-------------------------------------------\n')
+
 
     def reconstruct(self, x):
         """
@@ -531,7 +534,6 @@ class AAE(object):
 
         plt.figure(figsize=(8, 8))        
         plt.imshow(img, cmap="gray")
-
    
 
 #   ----------------------------------------------
@@ -582,7 +584,6 @@ if __name__ == '__main__':
 
     # load the model
     aae2d.load('./AdversarialAE/saved_models/model2d.ckpt')
-
     
     # get the images
     images, labels = mnist.train.next_batch(1000)

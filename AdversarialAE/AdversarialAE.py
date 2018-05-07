@@ -499,7 +499,7 @@ class AAE(object):
         else:
             assert z.shape[0] <= self.batch_size, 'z.shape[0] must be smaller than batch size'
             num_images = z.shape[0]
-            z_dummy = np.zeros((self.batch_size, 2), dtype=float)
+            z_dummy = np.zeros((self.batch_size, self.reduced_dim), dtype=float)
             z_dummy[:num_images, :] = z
             z = z_dummy
               

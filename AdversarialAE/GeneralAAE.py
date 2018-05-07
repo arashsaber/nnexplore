@@ -24,6 +24,7 @@ class AAE(object):
         reduced_dim=10, 
         batch_size=128, channel_size=128,
         activation=tf.nn.relu,
+        num_classes=None,
         lr=1e-3, beta1=0.5,
         weight_init=tflearn.initializations.xavier(uniform=False),
         bias_init=tflearn.initializations.xavier(uniform=False),
@@ -57,6 +58,8 @@ class AAE(object):
         self.small_size_img = int(input_shape[0]*input_shape[1]/16)
         self.batch_size = batch_size
         self.channel_size = channel_size
+        if num_classes is not None:
+            self.num_classes = num_classes
         dummy_dim = int(np.sqrt(self.small_size_img))
         self.reshaped_dim = [-1, dummy_dim, dummy_dim, self.channel_size] #[-1, 7, 7, .self.channel_size]
         self.weight_init = weight_init
@@ -75,9 +78,10 @@ class AAE(object):
         self.Y = tf.placeholder(dtype=tf.float32, shape=[None, self.input_shape[0], 
                                 self.input_shape[1]], name='Y')
         self.Y_flat = tf.reshape(self.Y, shape=[-1, self.input_shape[0] * self.input_shape[1]])
-        #self.Z = tf.placeholder(dtype=tf.float32, shape=[None, self.reduced_dim], name='Z')
         self.Z_prior = tf.placeholder(dtype=tf.float32, shape=[self.batch_size,  self.reduced_dim], 
                                 name='Z_prior')
+        if self.nn_type == 'supervised':
+            self.Label = tf.placeholder(dtype=tf.float32, shape=[None, self.num_classes], name='Label')
 
 
     def encoder(self, x, reuse=None):
@@ -303,7 +307,10 @@ class AAE(object):
                     batch_x, batch_label = dataset.train.next_batch(self.batch_size)
                     batch_x = batch_x.reshape((-1, 28,28))
 
-                    sess.run(self.rec_opt, feed_dict={self.X: batch_x, self.Y: batch_x})
+                    if self.nn_type == 'unsupervised':
+                        sess.run(self.rec_opt, feed_dict={self.X: batch_x, self.Y: batch_x})
+                    elif self.nn_type == 'supervised':
+                        sess.run(self.rec_opt, feed_dict={self.X: batch_x, self.Y: batch_x, self.Label: batch_label})
                     sess.run(self.dis_opt,
                             feed_dict={self.X: batch_x, self.Y: batch_x, self.Z_prior: z_prior})
                     sess.run(self.gen_opt, feed_dict={self.X: batch_x, self.Y: batch_x})
@@ -491,6 +498,7 @@ class AAE(object):
         plt.colorbar()
         plt.grid()
 
+
     def generate(self, num_images=None, z=None, z_std=5):
         """
         generate data from noise input
@@ -507,7 +515,7 @@ class AAE(object):
         else:
             assert z.shape[0] <= self.batch_size, 'z.shape[0] must be smaller than batch size'
             num_images = z.shape[0]
-            z_dummy = np.zeros((self.batch_size, 2), dtype=float)
+            z_dummy = np.zeros((self.batch_size, self.reduced_dim), dtype=float)
             z_dummy[:num_images, :] = z
             z = z_dummy
               

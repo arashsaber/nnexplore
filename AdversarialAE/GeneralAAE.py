@@ -19,6 +19,7 @@ from progressbar import ProgressBar, ETA, Bar, Percentage, Timer
 class AAE(object):
 
     def __init__(self,
+        nn_type='unsupervised',
         input_shape=[28, 28],
         reduced_dim=10, 
         batch_size=128, channel_size=128,
@@ -30,6 +31,8 @@ class AAE(object):
         """
         initialization
         Arguments:
+            nn_type: string, type of the AAE, should be in ['unsupervised', 
+                    'semi_supervised', 'supervised']
             input_shape: ist of 2 ints, shape of the input image
             reduced_dim: int, dimension of the latent feature space, i.e., z
             batch_size: int, batch size
@@ -41,7 +44,10 @@ class AAE(object):
             bias_init: tf function, initialization of the biases
             tensorboard_dir: string, path in where the tf logs will be saved
         """
+        assert nn_type in ['unsupervised', 'semi_supervised', 'supervised'], \
+            "nn_type can be set to unsupervised, semi_supervised, or supervised"
         tf.reset_default_graph()
+        self.nn_type = nn_type
         self.graph = tf.get_default_graph()
         self.input_shape = input_shape
         self.reduced_dim = reduced_dim
@@ -95,7 +101,7 @@ class AAE(object):
                             name ='enc_L2_conv')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = tf.layers.batch_normalization(x, name='enc_L3_bn')
-            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            #tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = self.activation(x)
             x = tf.contrib.layers.flatten(x)
             x = tf.layers.dense(x, units=1024, 
@@ -105,7 +111,7 @@ class AAE(object):
                             name ='enc_L4_fc')
             tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = tf.layers.batch_normalization(x, name='enc_L5_bn')
-            tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
+            #tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, x)
             x = self.activation(x)
             x = tf.layers.dense(x, units=self.reduced_dim, 
                             activation=None, 
@@ -169,8 +175,6 @@ class AAE(object):
     def discriminator(self, z, reuse=False):
         """
         Discriminator network
-        Note: if uncomment the monitor of activations, then two discriminator in the 
-        tensorboard will be created one for each real or fake distribution.
         """
         if reuse:
             tf.get_variable_scope().reuse_variables()
@@ -205,7 +209,10 @@ class AAE(object):
         """
         with tf.variable_scope(tf.get_variable_scope()):
             self.z = self.encoder(self.X)
-            self.y = self.decoder(self.z)
+            if self.nn_type is 'unsupervised':
+                self.y = self.decoder(self.z)
+            elif self.nn_type is 'supervised':
+                self.y = self.decoder(tf.concat([self.Label, self.z], 1))
             y_flat = tf.reshape(self.y, [-1, self.input_shape[0] * self.input_shape[1]])
 
         with tf.variable_scope(tf.get_variable_scope()):
@@ -213,8 +220,10 @@ class AAE(object):
             d_fake = self.discriminator(self.z, reuse=True)
 
         with tf.variable_scope(tf.get_variable_scope()):
-            self.gen = self.decoder(self.Z_prior, reuse=True)
-        
+            if self.nn_type is 'unsupervised':
+                self.gen = self.decoder(self.Z_prior, reuse=True)
+            elif self.nn_type is 'supervised':
+                self.gen = self.decoder(tf.concat([self.Label, self.Z_prior], 1))
 
         # loss
         self.rec_loss = tf.reduce_mean(tf.square(self.Y_flat - y_flat))
@@ -291,7 +300,7 @@ class AAE(object):
                     pbar.update(batch_num)
                     # getting the batch data
                     z_prior = np.random.randn(self.batch_size, self.reduced_dim) * z_std
-                    batch_x, _ = dataset.train.next_batch(self.batch_size)
+                    batch_x, batch_label = dataset.train.next_batch(self.batch_size)
                     batch_x = batch_x.reshape((-1, 28,28))
 
                     sess.run(self.rec_opt, feed_dict={self.X: batch_x, self.Y: batch_x})
@@ -482,7 +491,6 @@ class AAE(object):
         plt.colorbar()
         plt.grid()
 
-
     def generate(self, num_images=None, z=None, z_std=5):
         """
         generate data from noise input
@@ -568,14 +576,14 @@ if __name__ == '__main__':
     aae = AAE()
 
     # train and save the model
-    #aae.train(dataset=mnist, n_epoch=20, report_flag=False)
-    #aae.save('./AdversarialAE/saved_models/model.ckpt')
+    aae.train(dataset=mnist, n_epoch=20, report_flag=False)
+    aae.save('./AdversarialAE/saved_models/model.ckpt')
 
     # load the model
     aae.load('./AdversarialAE/saved_models/model.ckpt')
     
     # test the generator
-    plt.imshow(aae.generator_viewer(60), cmap='gray')
+    plt.imshow(aae.generator_viewer(128), cmap='gray')
     
     # get the images
     images, labels = mnist.test.next_batch(128)
@@ -599,8 +607,8 @@ if __name__ == '__main__':
     aae2d = AAE(reduced_dim=2) 
 
     # train and save the model
-    #aae2d.train(dataset=mnist, n_epoch=20, report_flag=False)
-    #aae2d.save('./AdversarialAE/saved_models/model2d.ckpt')
+    aae2d.train(dataset=mnist, n_epoch=20, report_flag=False)
+    aae2d.save('./AdversarialAE/saved_models/model2d.ckpt')
 
     # load the model
     aae2d.load('./AdversarialAE/saved_models/model2d.ckpt')

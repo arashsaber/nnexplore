@@ -2,6 +2,10 @@
 
 An adversarial autoencoder object. For theoretical details please check the paper
 available [**here**](https://arxiv.org/pdf/1511.05644.pdf).
+
+**AdversarialAE.py** implements a unsupervised version of AAE and **GeneralAAE.py** implements all
+types of supervision, i.e, unsupervised, supervised, and semi-supervised (still under construction).
+
 To use the model, simply call the object as shown below.
 
 **Getting the data:**

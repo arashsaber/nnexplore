@@ -561,7 +561,7 @@ if __name__ == '__main__':
     aae = AAE()
 
     # train and save the model
-    #aae.train(dataset=mnist, n_epoch=20, report_flag=False)
+    aae.train(dataset=mnist, n_epoch=20, report_flag=False)
     #aae.save('./AdversarialAE/saved_models/model.ckpt')
 
     # load the model

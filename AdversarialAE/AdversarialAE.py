@@ -70,7 +70,7 @@ class AAE(object):
                                 self.input_shape[1]], name='Y')
         self.Y_flat = tf.reshape(self.Y, shape=[-1, self.input_shape[0] * self.input_shape[1]])
         #self.Z = tf.placeholder(dtype=tf.float32, shape=[None, self.reduced_dim], name='Z')
-        self.Z_prior = tf.placeholder(dtype=tf.float32, shape=[self.batch_size,  self.reduced_dim], 
+        self.Z_prior = tf.placeholder(dtype=tf.float32, shape=[None,  self.reduced_dim], 
                                 name='Z_prior')
 
 
@@ -495,17 +495,11 @@ class AAE(object):
             num_images = self.batch_size
 
         if z is None:
-            z = np.random.randn(self.batch_size, self.reduced_dim) * z_std
+            z = np.random.randn(num_images, self.reduced_dim) * z_std
         else:
-            assert z.shape[0] <= self.batch_size, 'z.shape[0] must be smaller than batch size'
             num_images = z.shape[0]
-            z_dummy = np.zeros((self.batch_size, self.reduced_dim), dtype=float)
-            z_dummy[:num_images, :] = z
-            z = z_dummy
               
-        imgs = self.sess.run(self.decoder(self.Z_prior, reuse=True), feed_dict={self.Z_prior: z})
-        
-        return imgs[:num_images,:,:]
+        return self.sess.run(self.decoder(self.Z_prior, reuse=True), feed_dict={self.Z_prior: z})
         
 
     def generator_viewer(self, num_images):
@@ -535,7 +529,6 @@ class AAE(object):
         Arguments:
             num_imgs_row: int, number of images in each row
         """
-        assert num_imgs_row <= self.batch_size, 'num_imgs_row should be less than batch size in this implementation'
         assert self.reduced_dim == 2, 'reduced_dim must be 2 for this visualization'
         h, w = self.input_shape[0], self.input_shape[1]
         

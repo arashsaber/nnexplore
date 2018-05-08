@@ -19,7 +19,7 @@ from progressbar import ProgressBar, ETA, Bar, Percentage, Timer
 class AAE(object):
 
     def __init__(self,
-        nn_type='unsupervised',
+        aae_type='unsupervised',
         input_shape=[28, 28],
         reduced_dim=10, 
         batch_size=128, channel_size=128,
@@ -32,7 +32,7 @@ class AAE(object):
         """
         initialization
         Arguments:
-            nn_type: string, type of the AAE, should be in ['unsupervised', 
+            aae_type: string, type of the AAE, should be in ['unsupervised', 
                     'semi_supervised', 'supervised']
             input_shape: ist of 2 ints, shape of the input image
             reduced_dim: int, dimension of the latent feature space, i.e., z
@@ -45,10 +45,10 @@ class AAE(object):
             bias_init: tf function, initialization of the biases
             tensorboard_dir: string, path in where the tf logs will be saved
         """
-        assert nn_type in ['unsupervised', 'semi_supervised', 'supervised'], \
-            "nn_type can be set to unsupervised, semi_supervised, or supervised"
+        assert aae_type in ['unsupervised', 'semi_supervised', 'supervised'], \
+            "aae_type can be set to unsupervised, semi_supervised, or supervised"
         tf.reset_default_graph()
-        self.nn_type = nn_type
+        self.aae_type = aae_type
         self.graph = tf.get_default_graph()
         self.input_shape = input_shape
         self.reduced_dim = reduced_dim
@@ -78,9 +78,9 @@ class AAE(object):
         self.Y = tf.placeholder(dtype=tf.float32, shape=[None, self.input_shape[0], 
                                 self.input_shape[1]], name='Y')
         self.Y_flat = tf.reshape(self.Y, shape=[-1, self.input_shape[0] * self.input_shape[1]])
-        self.Z_prior = tf.placeholder(dtype=tf.float32, shape=[self.batch_size,  self.reduced_dim], 
+        self.Z_prior = tf.placeholder(dtype=tf.float32, shape=[None,  self.reduced_dim], 
                                 name='Z_prior')
-        if self.nn_type == 'supervised':
+        if self.aae_type == 'supervised':
             self.Label = tf.placeholder(dtype=tf.float32, shape=[None, self.num_classes], name='Label')
 
 
@@ -213,9 +213,9 @@ class AAE(object):
         """
         with tf.variable_scope(tf.get_variable_scope()):
             self.z = self.encoder(self.X)
-            if self.nn_type is 'unsupervised':
+            if self.aae_type is 'unsupervised':
                 self.y = self.decoder(self.z)
-            elif self.nn_type is 'supervised':
+            elif self.aae_type is 'supervised':
                 self.y = self.decoder(tf.concat([self.Label, self.z], 1))
             y_flat = tf.reshape(self.y, [-1, self.input_shape[0] * self.input_shape[1]])
 
@@ -224,10 +224,10 @@ class AAE(object):
             d_fake = self.discriminator(self.z, reuse=True)
 
         with tf.variable_scope(tf.get_variable_scope()):
-            if self.nn_type is 'unsupervised':
+            if self.aae_type is 'unsupervised':
                 self.gen = self.decoder(self.Z_prior, reuse=True)
-            elif self.nn_type is 'supervised':
-                self.gen = self.decoder(tf.concat([self.Label, self.Z_prior], 1))
+            elif self.aae_type is 'supervised':
+                self.gen = self.decoder(tf.concat([self.Label, self.Z_prior], 1), reuse=True)
 
         # loss
         self.rec_loss = tf.reduce_mean(tf.square(self.Y_flat - y_flat))
@@ -307,18 +307,23 @@ class AAE(object):
                     batch_x, batch_label = dataset.train.next_batch(self.batch_size)
                     batch_x = batch_x.reshape((-1, 28,28))
 
-                    if self.nn_type == 'unsupervised':
+                    if self.aae_type == 'unsupervised':
                         sess.run(self.rec_opt, feed_dict={self.X: batch_x, self.Y: batch_x})
-                    elif self.nn_type == 'supervised':
+                    elif self.aae_type == 'supervised':
                         sess.run(self.rec_opt, feed_dict={self.X: batch_x, self.Y: batch_x, self.Label: batch_label})
                     sess.run(self.dis_opt,
                             feed_dict={self.X: batch_x, self.Y: batch_x, self.Z_prior: z_prior})
                     sess.run(self.gen_opt, feed_dict={self.X: batch_x, self.Y: batch_x})
                     
                     if batch_num % checkpoint_interval == 0:
-                        a_loss, d_loss, g_loss, summary = sess.run(
+                        if self.aae_type == 'unsupervised':
+                            a_loss, d_loss, g_loss, summary = sess.run(
                                 [self.rec_loss, self.dis_loss, self.gen_loss, self.summary_op],
                                 feed_dict={self.X: batch_x, self.Y: batch_x, self.Z_prior: z_prior})
+                        elif self.aae_type == 'supervised':
+                            a_loss, d_loss, g_loss, summary = sess.run(
+                                [self.rec_loss, self.dis_loss, self.gen_loss, self.summary_op],
+                                feed_dict={self.X: batch_x, self.Y: batch_x, self.Label: batch_label, self.Z_prior: z_prior})
                         writer.add_summary(summary, global_step=step)
                         if report_flag:
                             print('Epoch: {}, iteration: {}'.format(epoch_num, batch_num))
@@ -347,7 +352,7 @@ class AAE(object):
             report_flag: bool, a flag to print the log values
         """
         if run_id is None:
-            run_id = 'Adversarial_AE_{}'.format(datetime.datetime.now())
+            run_id = 'Adversarial_AE_{0}_{1}'.format(self.aae_type, datetime.datetime.now())
         
         self.run_id = run_id
         self._trainer(dataset, n_epoch=n_epoch, z_std=z_std, checkpoint_interval=checkpoint_interval, report_flag=report_flag)
@@ -433,6 +438,7 @@ class AAE(object):
             log.write('-------------------------------------------\n')
             log.write('trained on: {}\n'.format(datetime.datetime.now()))
             log.write('Parameters:\n')
+            log.write('type: {}\n'.format(self.aae_type))
             log.write('dimension of z: {}\n'.format(self.reduced_dim))
             log.write('learning rate: {}\n'.format(self.lr))
             log.write('batch size: {}\n'.format(self.batch_size))
@@ -442,22 +448,28 @@ class AAE(object):
             log.write('-------------------------------------------\n')
 
 
-    def reconstruct(self, x):
+    def reconstruct(self, x, labels=None):
         """
         Produce the reconstruction for input images x
         Arguments:
             x: 3d array [num_images,h,w], input images
+            labels: 2d array, labels
         """
-        return self.sess.run(self.y, feed_dict={self.X: x.reshape((-1,self.input_shape[0], self.input_shape[1]))})
+        if self.aae_type == 'unsupervised':
+            return self.sess.run(self.y, feed_dict={self.X: x.reshape((-1,self.input_shape[0], self.input_shape[1]))})
+        if self.aae_type == 'supervised':
+            assert labels is not None, 'Please provide the labels'
+            return self.sess.run(self.y, feed_dict={self.X: x.reshape((-1,self.input_shape[0], self.input_shape[1])), self.Label: labels})
 
 
-    def reconstructor_viewer(self, x):
+    def reconstructor_viewer(self, x, labels=None):
         """
         produce an image to view reconstructed data together with the original data
         Arguments:
             x: 3d array [num_images,h,w], input images
+            labels:2d array, labels
         """  
-        reconstructed = self.reconstruct(x)
+        reconstructed = self.reconstruct(x, labels=labels)
         
         num_images = x.shape[0]
         h, w = x.shape[1], x.shape[2]
@@ -511,17 +523,22 @@ class AAE(object):
             num_images = self.batch_size
 
         if z is None:
-            z = np.random.randn(self.batch_size, self.reduced_dim) * z_std
+            z = np.random.randn(num_images, self.reduced_dim) * z_std
         else:
-            assert z.shape[0] <= self.batch_size, 'z.shape[0] must be smaller than batch size'
             num_images = z.shape[0]
-            z_dummy = np.zeros((self.batch_size, self.reduced_dim), dtype=float)
-            z_dummy[:num_images, :] = z
-            z = z_dummy
               
-        imgs = self.sess.run(self.decoder(self.Z_prior, reuse=True), feed_dict={self.Z_prior: z})
+        if self.aae_type == 'unsupervised':
+            imgs = self.sess.run(self.decoder(self.Z_prior, reuse=True), feed_dict={self.Z_prior: z})
         
-        return imgs[:num_images,:,:]
+        elif self.aae_type == 'supervised':
+            classes = np.identity(self.num_classes, dtype=float)
+            idx = np.random.randint(self.num_classes, size=num_images) 
+            labels = classes[idx, :]
+            imgs = self.sess.run(
+                    self.decoder(tf.concat([self.Label, self.Z_prior], 1), reuse=True),
+                    feed_dict={self.Label: labels, self.Z_prior: z})
+        
+        return imgs
         
 
     def generator_viewer(self, num_images):
@@ -551,7 +568,6 @@ class AAE(object):
         Arguments:
             num_imgs_row: int, number of images in each row
         """
-        assert num_imgs_row <= self.batch_size, 'num_imgs_row should be less than batch size in this implementation'
         assert self.reduced_dim == 2, 'reduced_dim must be 2 for this visualization'
         h, w = self.input_shape[0], self.input_shape[1]
         
@@ -581,22 +597,23 @@ if __name__ == '__main__':
 
     # ----------------------------------------
     # build the model
-    aae = AAE()
+    aae = AAE(aae_type='supervised', num_classes=10)
 
     # train and save the model
-    aae.train(dataset=mnist, n_epoch=20, report_flag=False)
-    aae.save('./AdversarialAE/saved_models/model.ckpt')
+    aae.train(dataset=mnist, n_epoch=2, report_flag=False)
+    aae.save('./AdversarialAE/saved_models/Smodel.ckpt')
 
     # load the model
-    aae.load('./AdversarialAE/saved_models/model.ckpt')
+    aae.load('./AdversarialAE/saved_models/Smodel.ckpt')
     
     # test the generator
-    plt.imshow(aae.generator_viewer(128), cmap='gray')
+    plt.imshow(aae.generator_viewer(50), cmap='gray')
     
     # get the images
     images, labels = mnist.test.next_batch(128)
     images = images.reshape((-1,28,28))
     image = images[0,:,:]
+    label = labels[0,:].reshape((1,10))
                     
     # test the dimensionality reduction
     z = aae.reduce_dimension(images)
@@ -604,13 +621,14 @@ if __name__ == '__main__':
     # test the reconstruction
     plt.figure()
     plt.imshow(np.hstack((image.reshape(28,28), 
-                        aae.reconstruct(image).reshape(28,28)
+                        aae.reconstruct(image, label).reshape(28,28)
                         )), cmap='gray')
     plt.figure()
-    plt.imshow(aae.reconstructor_viewer(images), cmap='gray')
+    plt.imshow(aae.reconstructor_viewer(images, labels), cmap='gray')
     
     plt.show()
     # ----------------------------------------
+    '''
     # build the 2 dimensional model
     aae2d = AAE(reduced_dim=2) 
 
@@ -632,3 +650,4 @@ if __name__ == '__main__':
     aae2d.spectum_2d(40)
 
     plt.show()
+    '''

@@ -271,7 +271,7 @@ class VAE(object):
         return img
 
 
-    def spectum_2d(self, num_imgs_row):
+    def manifold_2d(self, num_imgs_row):
         """
         spectrum of the changes of generator
         Arguments:
@@ -382,7 +382,7 @@ if __name__ == '__main__':
     # the scatter plot of 2d latent features
     vae2d.visualization_2d(testX[:1000,:,:], testY[:1000,:])
 
-    # the spectrum of the generated images
-    vae2d.spectum_2d(25)
+    # the spectrum of the manifold of the generated images
+    vae2d.manifold_2d(25)
 
     plt.show()
